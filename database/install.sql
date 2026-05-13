@@ -9,18 +9,21 @@ SET NAMES utf8mb4;
 SET time_zone = '+03:00';
 
 -- ---------- users ----------
+-- Phone is the primary identifier (required, unique).
+-- Email is optional but unique when supplied.
 CREATE TABLE IF NOT EXISTS users (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  email VARCHAR(190) NOT NULL,
+  email VARCHAR(190) NULL,
   full_name VARCHAR(190) NOT NULL,
-  phone VARCHAR(32) NULL,
+  phone VARCHAR(32) NOT NULL,
   role ENUM('buyer','seller','agent','admin') NOT NULL DEFAULT 'buyer',
   password_hash VARCHAR(255) NOT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uniq_users_email (email)
+  UNIQUE KEY uniq_users_email (email),
+  UNIQUE KEY uniq_users_phone (phone)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- listings ----------
@@ -132,22 +135,24 @@ CREATE TABLE IF NOT EXISTS payment_steps (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------- Seed accounts (no-op if they already exist) ----------
--- admin@ardhiguide.local  / Admin123!
-INSERT INTO users (email, full_name, role, password_hash, is_active)
+-- admin@ardhiguide.local / 255657925368 -- password: Admin123!
+INSERT INTO users (email, full_name, phone, role, password_hash, is_active)
 VALUES (
   'admin@ardhiguide.local',
   'Ardhi Guide Admin',
+  '255657925368',
   'admin',
   '$2y$10$mbAKdvIrXGwui6c53TgVU.fnyhjIo8.8nUmHPWLkkvNtTaWkxf6fK',
   1
 )
 ON DUPLICATE KEY UPDATE email = email;
 
--- seller@ardhiguide.local / Seller123!
-INSERT INTO users (email, full_name, role, password_hash, is_active)
+-- seller@ardhiguide.local / 255700000001 -- password: Seller123!
+INSERT INTO users (email, full_name, phone, role, password_hash, is_active)
 VALUES (
   'seller@ardhiguide.local',
   'Sample Seller',
+  '255700000001',
   'seller',
   '$2y$10$Jj2MURYTZNEA3bGUaliKg.l6MbfUFJ71YV6f/UkjeOg7vRfl4UAb6',
   1

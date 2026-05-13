@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $st = db()->prepare(
-  'SELECT l.*, u.email AS owner_email, u.full_name AS owner_name
+  'SELECT l.*, u.email AS owner_email, u.phone AS owner_phone, u.full_name AS owner_name
    FROM listings l
    LEFT JOIN users u ON u.id = l.created_by_user_id
    WHERE l.id = ?'
@@ -98,7 +98,11 @@ ob_start();
         <div class="kicker">Owner</div>
         <p class="sub" style="margin:.5rem 0 0">
           <?= h((string)($listing['owner_name'] ?? '-')) ?><br>
-          <?= h((string)($listing['owner_email'] ?? '-')) ?>
+          <?php $oe = trim((string)($listing['owner_email'] ?? '')); ?>
+          <?php $op = trim((string)($listing['owner_phone'] ?? '')); ?>
+          <?php if ($oe !== ''): ?><?= h($oe) ?><br><?php endif; ?>
+          <?php if ($op !== ''): ?><?= h($op) ?><?php endif; ?>
+          <?php if ($oe === '' && $op === ''): ?>-<?php endif; ?>
         </p>
         <div class="kicker" style="margin-top:1rem">Description</div>
         <div class="sub" style="margin-top:.5rem"><?= nl2br(h((string)($listing['description'] ?? ''))) ?></div>

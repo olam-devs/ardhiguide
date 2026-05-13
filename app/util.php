@@ -22,6 +22,22 @@ function public_file(string $path): string {
   return $path;
 }
 
+/**
+ * Normalise a phone number into digits-only international form.
+ * Accepts inputs like "+255 657 925 368", "0657925368", "255657925368",
+ * "(255) 657-925-368". Tanzanian local numbers starting with 0 are
+ * converted to a 255 prefix. Returns "" if the input has no digits.
+ */
+function normalize_phone(?string $raw): string {
+  if ($raw === null) return '';
+  $digits = preg_replace('/\D+/', '', $raw) ?? '';
+  if ($digits === '') return '';
+  if (strlen($digits) > 1 && $digits[0] === '0') {
+    $digits = '255' . substr($digits, 1);
+  }
+  return $digits;
+}
+
 function format_tzs(?string $amount): string {
   if ($amount === null || $amount === '') return 'N/A';
   $n = preg_replace('/[^\d]/', '', $amount);

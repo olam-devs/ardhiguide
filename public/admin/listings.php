@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   redirect('/admin/listings.php');
 }
 
-$stmt = db()->query("SELECT l.id,l.title,l.region,l.category,l.verification_status,l.verification_badge,l.is_featured,l.listing_package,l.payment_status,l.payment_amount_tzs,l.created_at,u.email AS owner_email
+$stmt = db()->query("SELECT l.id,l.title,l.region,l.category,l.verification_status,l.verification_badge,l.is_featured,l.listing_package,l.payment_status,l.payment_amount_tzs,l.created_at,u.email AS owner_email,u.phone AS owner_phone,u.full_name AS owner_name
                      FROM listings l
                      LEFT JOIN users u ON u.id = l.created_by_user_id
                      ORDER BY FIELD(l.verification_status,'submitted','under_review','approved','rejected'), l.id DESC
@@ -103,7 +103,12 @@ ob_start();
               <div class="sub" style="font-size:.9rem"><?= h((string)$r['category']) ?></div>
             </td>
             <td style="padding:.85rem;border-bottom:1px solid var(--line)"><?= h((string)$r['region']) ?></td>
-            <td style="padding:.85rem;border-bottom:1px solid var(--line)"><?= h((string)($r['owner_email'] ?? '-')) ?></td>
+            <td style="padding:.85rem;border-bottom:1px solid var(--line)">
+              <?php $oe = trim((string)($r['owner_email'] ?? '')); $op = trim((string)($r['owner_phone'] ?? '')); ?>
+              <?php if ($oe !== ''): ?><div style="word-break:break-all"><?= h($oe) ?></div><?php endif; ?>
+              <?php if ($op !== ''): ?><div class="sub" style="font-size:.85rem"><?= h($op) ?></div><?php endif; ?>
+              <?php if ($oe === '' && $op === ''): ?>-<?php endif; ?>
+            </td>
             <td style="padding:.85rem;border-bottom:1px solid var(--line)">
               <?php $st=(string)$r['verification_status']; ?>
               <?php if ($st === 'approved'): ?>

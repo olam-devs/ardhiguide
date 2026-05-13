@@ -23,10 +23,28 @@ function require_role(string $role): array {
   exit;
 }
 
-function login(string $email, string $password): bool {
-  $stmt = db()->prepare('SELECT id,email,full_name,role,password_hash,is_active FROM users WHERE email = ? LIMIT 1');
-  $stmt->execute([$email]);
-  $u = $stmt->fetch();
+/**
+ * Look a user up by either email address or phone number. Returns null if
+ * the identifier matches no account.
+ */
+function find_user_by_identifier(string $identifier): ?array {
+  $identifier = trim($identifier);
+  if ($identifier === '') return null;
+  if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+    $stmt = db()->prepare('SELECT id,email,full_name,phone,role,password_hash,is_active FROM users WHERE email = ? LIMIT 1');
+    $stmt->execute([$identifier]);
+  } else {
+    $phone = normalize_phone($identifier);
+    if ($phone === '') return null;
+    $stmt = db()->prepare('SELECT id,email,full_name,phone,role,password_hash,is_active FROM users WHERE phone = ? LIMIT 1');
+    $stmt->execute([$phone]);
+  }
+  $row = $stmt->fetch();
+  return $row ?: null;
+}
+
+function login(string $identifier, string $password): bool {
+  $u = find_user_by_identifier($identifier);
   if (!$u) return false;
   if (!(int)$u['is_active']) return false;
   if (!password_verify($password, (string)$u['password_hash'])) return false;
@@ -34,7 +52,8 @@ function login(string $email, string $password): bool {
   session_start_safe();
   $_SESSION['user'] = [
     'id' => (int)$u['id'],
-    'email' => (string)$u['email'],
+    'email' => (string)($u['email'] ?? ''),
+    'phone' => (string)($u['phone'] ?? ''),
     'full_name' => (string)$u['full_name'],
     'role' => (string)$u['role'],
   ];
@@ -66,17 +85,21 @@ function redirect_after_login(): void {
 
 /**
  * Register a new user (buyer, seller, or agent only). Returns null on success, or an error message.
+ *
+ * Phone is required and serves as the primary identifier.
+ * Email is optional. When supplied it must be valid and unique.
  */
-function register_user(string $email, string $password, string $fullName, ?string $phone, string $role): ?string {
-  $email = trim($email);
+function register_user(?string $email, string $password, string $fullName, string $phone, string $role): ?string {
+  $email = $email !== null ? trim($email) : null;
+  if ($email === '') $email = null;
   $fullName = trim($fullName);
-  $phone = $phone !== null ? trim($phone) : null;
-  if ($phone === '') {
-    $phone = null;
-  }
+  $phone = normalize_phone($phone);
 
-  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    return 'Enter a valid email address.';
+  if ($phone === '' || strlen($phone) < 9 || strlen($phone) > 15) {
+    return 'Enter a valid phone number (we use it as your login).';
+  }
+  if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    return 'Enter a valid email address, or leave it blank.';
   }
   if (strlen($fullName) < 2) {
     return 'Enter your full name.';
@@ -94,7 +117,14 @@ function register_user(string $email, string $password, string $fullName, ?strin
     $stmt->execute([$email, $fullName, $phone, $role, $hash]);
   } catch (PDOException $e) {
     if (isset($e->errorInfo[1]) && (int)$e->errorInfo[1] === 1062) {
-      return 'An account with this email already exists.';
+      $msg = strtolower((string)($e->errorInfo[2] ?? ''));
+      if (strpos($msg, 'phone') !== false) {
+        return 'An account with this phone number already exists.';
+      }
+      if (strpos($msg, 'email') !== false) {
+        return 'An account with this email already exists.';
+      }
+      return 'An account with these details already exists.';
     }
     return 'Registration failed. Please try again.';
   }
@@ -103,7 +133,8 @@ function register_user(string $email, string $password, string $fullName, ?strin
   $id = (int)db()->lastInsertId();
   $_SESSION['user'] = [
     'id' => $id,
-    'email' => $email,
+    'email' => $email ?? '',
+    'phone' => $phone,
     'full_name' => $fullName,
     'role' => $role,
   ];

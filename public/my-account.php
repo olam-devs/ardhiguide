@@ -30,9 +30,13 @@ ob_start();
 ?>
   <div class="reveal" style="max-width:760px;margin:0 auto;display:grid;gap:1rem">
     <div class="card pad">
+      <?php
+        $displayId = trim((string)($profile['phone'] ?? ''));
+        if ($displayId === '') $displayId = trim((string)($profile['email'] ?? ($u['email'] ?? '')));
+      ?>
       <div class="kicker">My account</div>
       <h1 style="margin-bottom:.35rem">Account details</h1>
-      <div class="sub">Signed in as <strong><?= h((string)($profile['email'] ?? $u['email'] ?? '')) ?></strong>.</div>
+      <div class="sub">Signed in as <strong><?= h($displayId !== '' ? $displayId : 'User') ?></strong>.</div>
 
       <div class="row" style="margin-top:1rem">
         <div>
@@ -46,16 +50,16 @@ ob_start();
       </div>
       <div class="row" style="margin-top:.65rem">
         <div>
-          <label>Email</label>
-          <input type="text" value="<?= h((string)($profile['email'] ?? '')) ?>" disabled>
+          <label>Phone (login)</label>
+          <input type="text" value="<?= h((string)($profile['phone'] ?? '')) ?>" disabled>
         </div>
         <div>
-          <label>Phone</label>
-          <input type="text" value="<?= h((string)($profile['phone'] ?? '')) ?>" disabled>
+          <label>Email <span style="color:var(--muted);font-weight:500">(optional)</span></label>
+          <input type="text" value="<?= h((string)($profile['email'] ?? '')) ?>" placeholder="Not set" disabled>
         </div>
       </div>
       <p class="sub" style="margin-top:.85rem;font-size:.88rem">
-        To change your name, email, or phone, please contact the admin team.
+        To change your name, phone, or email, please contact the admin team.
       </p>
     </div>
 
