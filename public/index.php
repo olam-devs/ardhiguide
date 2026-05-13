@@ -361,7 +361,7 @@ ob_start();
     <div>
       <div class="kicker" style="color:var(--gold-100);letter-spacing:.28em">Ready to start?</div>
       <h2>Got a plot to sell? <em>Reach buyers today.</em></h2>
-      <p>Create a free account, submit your land with photos and optional documents, and our team will review it before publishing. Pay your listing fee with M-Pesa and follow our published payment guide.</p>
+      <p>Create a free account, submit your land with photos and optional documents, and our team will review it before publishing. Pay your listing fee using any of the methods in our published payment guide.</p>
     </div>
     <div class="btns">
       <?php if ($canList): ?>

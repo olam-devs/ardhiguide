@@ -33,7 +33,7 @@ ob_start();
     <div class="card pad reveal">
       <div class="kicker">Coming soon</div>
       <h2 style="margin:.25rem 0 .55rem">Payment instructions will appear here.</h2>
-      <p class="sub">Our admin team is preparing categories such as M-Pesa, bank transfer, and others. Please check back shortly, or reach out on WhatsApp for help right now.</p>
+      <p class="sub">Our admin team is preparing the payment categories. Please check back shortly, or reach out on WhatsApp for help right now.</p>
     </div>
   <?php else: ?>
     <div class="pi-grid reveal">

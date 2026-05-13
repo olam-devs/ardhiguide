@@ -64,9 +64,9 @@ ob_start();
     <h2>Payments</h2>
     <ul class="sub" style="margin:0;padding-left:1.2rem;line-height:1.75">
       <li>Fees are set by package (Basic, Featured, Premium) at submit time.</li>
-      <li>Payment instructions on the <strong>Pay listing fee</strong> page come from your <code>app/.env</code> (<strong>MPESA_PAYMENT_HINT</strong>).</li>
+      <li>Full step-by-step payment methods are managed by admins under <strong>Payment instructions</strong>. The Pay listing fee page also shows a short fallback hint set in the server configuration.</li>
       <li>Admins mark payments <strong>paid</strong> or <strong>waived</strong> on the listing detail screen. Optional setting <strong>REQUIRE_PAYMENT_FOR_APPROVAL</strong> blocks approval until paid or waived.</li>
-      <li>Automated gateways (e.g. Snippe, direct M-Pesa API) can be added later without changing the core listing workflow.</li>
+      <li>Automated payment gateways can be added later without changing the core listing workflow.</li>
     </ul>
   </div>
 

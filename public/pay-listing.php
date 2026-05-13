@@ -38,7 +38,7 @@ if ($payStatus === 'paid' || $payStatus === 'waived' || $amount <= 0) {
 }
 
 $title = (string)$listing['title'];
-$waMsg = "Hello Ardhi Guide\n\nPayment receipt for listing #{$id}\nTitle: {$title}\nAmount: TSh " . number_format($amount, 0, '.', ',') . "\nReference: {$ref}\n\nI have completed the M-Pesa payment. Attached is the confirmation SMS / screenshot. Please verify and approve. Asante sana.";
+$waMsg = "Hello Ardhi Guide\n\nPayment receipt for listing #{$id}\nTitle: {$title}\nAmount: TSh " . number_format($amount, 0, '.', ',') . "\nReference: {$ref}\n\nI have completed the payment. Attached is the confirmation (SMS, screenshot, or bank slip). Please verify and approve. Asante sana.";
 
 ob_start();
 ?>
@@ -57,7 +57,7 @@ ob_start();
     </div>
 
     <div class="card pad" style="margin-top:1rem">
-      <div class="kicker">M-Pesa</div>
+      <div class="kicker">Quick payment hint</div>
       <p class="sub" style="margin:.5rem 0 0;line-height:1.75"><?= nl2br(h(MPESA_PAYMENT_HINT)) ?></p>
       <p class="sub" style="margin-top:.75rem">Always include the <strong>payment code</strong> in the transaction description so we can match your payment.</p>
     </div>
@@ -65,7 +65,7 @@ ob_start();
     <div class="card pad" style="margin-top:1rem;border-color:rgba(165,120,38,.25);background:var(--gold-50)">
       <div class="kicker" style="color:var(--gold-700)">Need full step-by-step?</div>
       <h3 style="margin:.3rem 0 .45rem;font-size:1.1rem">See the published payment guide</h3>
-      <p class="sub" style="margin:0">Our admin team publishes complete payment categories (M-Pesa, bank, and more) with numbered steps. Read them on the public payment guide page.</p>
+      <p class="sub" style="margin:0">Our admin team publishes payment categories with numbered steps. Read them on the public payment guide page and use the method that suits you.</p>
       <div style="margin-top:.8rem">
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/payment-instructions.php">Open payment guide</a>
       </div>
@@ -73,9 +73,9 @@ ob_start();
 
     <div class="receipt-cta">
       <div class="kicker">Important last step</div>
-      <h3>Send your M-Pesa receipt on WhatsApp</h3>
+      <h3>Send your payment receipt on WhatsApp</h3>
       <p>
-        After completing the payment, forward the M-Pesa confirmation SMS (or a screenshot) to our admin on WhatsApp.
+        After completing the payment, forward your confirmation (SMS, screenshot, or bank slip) to our admin on WhatsApp.
         Your listing will only be approved once the receipt is received and matched to payment code
         <strong><?= h($ref) ?></strong>.
       </p>
