@@ -69,6 +69,9 @@ $u = current_user();
         <?php if ($u): ?>
           <a href="<?= APP_BASE_URL ?>/my-enquiries.php">My enquiries</a>
         <?php endif; ?>
+        <?php if ($u): ?>
+          <a href="<?= APP_BASE_URL ?>/my-account.php">My account</a>
+        <?php endif; ?>
         <?php if ($u && ($u['role'] ?? '') === 'admin'): ?>
           <a href="<?= APP_BASE_URL ?>/admin/listings.php" class="cta">Admin</a>
         <?php endif; ?>
@@ -123,10 +126,15 @@ $u = current_user();
         <a href="<?= APP_BASE_URL ?>/register.php">Register</a>
       </nav>
 
-      <div class="footer-contact">
-        <a href="tel:+255657925368">+255 657 925 368</a>
-        <span class="footer-sep" aria-hidden="true"></span>
-        <a href="https://wa.me/255657925368" target="_blank" rel="noopener">WhatsApp</a>
+      <div class="contact-buttons">
+        <a class="contact-btn phone lg" href="tel:+255657925368">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92V21a1 1 0 0 1-1.11 1A19 19 0 0 1 2 4.11 1 1 0 0 1 3 3h4.09a1 1 0 0 1 1 .75l1 4a1 1 0 0 1-.29 1L7 10.5a16 16 0 0 0 6.5 6.5l1.75-1.8a1 1 0 0 1 1-.29l4 1a1 1 0 0 1 .75 1z"/></svg>
+          Call +255 657 925 368
+        </a>
+        <a class="contact-btn wa lg" href="https://wa.me/255657925368" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163A11.867 11.867 0 0 1 .096 11.86C.099 5.334 5.43.003 11.954.003a11.815 11.815 0 0 1 8.413 3.488 11.821 11.821 0 0 1 3.48 8.414c-.003 6.526-5.335 11.857-11.86 11.857a11.9 11.9 0 0 1-5.674-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg>
+          Chat on WhatsApp
+        </a>
       </div>
 
       <div class="footer-copy">&copy; <?= date('Y') ?> Ardhi Guide. Dar es Salaam, Tanzania.</div>

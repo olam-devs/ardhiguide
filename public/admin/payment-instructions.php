@@ -136,6 +136,7 @@ ob_start();
       </div>
       <div class="col-5" style="display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap">
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/listings.php">Listings</a>
+        <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/users.php">Users</a>
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/enquiries.php">Enquiries</a>
         <a class="btn" href="<?= APP_BASE_URL ?>/payment-instructions.php" target="_blank" rel="noreferrer">Public guide</a>
       </div>

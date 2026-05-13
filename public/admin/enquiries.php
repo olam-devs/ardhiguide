@@ -27,6 +27,8 @@ ob_start();
       </div>
       <div class="col-5" style="display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap">
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/listings.php">Listings</a>
+        <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/users.php">Users</a>
+        <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/payment-instructions.php">Payment instructions</a>
         <a class="btn" href="<?= APP_BASE_URL ?>/index.php">Public browse</a>
       </div>
     </div>

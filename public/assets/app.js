@@ -97,4 +97,20 @@
       counters.forEach(animate);
     }
   }
+
+  // ---- Password show / hide toggle ----
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest && ev.target.closest('.pwd-toggle');
+    if (!btn) return;
+    ev.preventDefault();
+    const wrap = btn.closest('.pwd');
+    if (!wrap) return;
+    const input = wrap.querySelector('input');
+    if (!input) return;
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    btn.classList.toggle('is-on', isHidden);
+    btn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    btn.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+  });
 })();

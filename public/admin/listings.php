@@ -70,6 +70,7 @@ ob_start();
         <div class="sub">Approve listings to publish them. Use “under review” while your ops team checks documents.</div>
       </div>
       <div class="col-5" style="display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap">
+        <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/users.php">Users</a>
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/payment-instructions.php">Payment instructions</a>
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/enquiries.php">Enquiries</a>
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/submit-listing.php">Submit listing</a>

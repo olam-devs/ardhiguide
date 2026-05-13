@@ -110,3 +110,68 @@ function register_user(string $email, string $password, string $fullName, ?strin
   return null;
 }
 
+/**
+ * Change the current user's password. Verifies the current password first.
+ * Returns null on success or an error message.
+ */
+function change_password(int $userId, string $currentPassword, string $newPassword, string $confirmPassword): ?string {
+  if (strlen($newPassword) < 8) {
+    return 'New password must be at least 8 characters.';
+  }
+  if ($newPassword !== $confirmPassword) {
+    return 'New passwords do not match.';
+  }
+  if ($currentPassword === $newPassword) {
+    return 'New password must be different from the current password.';
+  }
+  $stmt = db()->prepare('SELECT password_hash FROM users WHERE id = ? LIMIT 1');
+  $stmt->execute([$userId]);
+  $row = $stmt->fetch();
+  if (!$row) {
+    return 'Account not found.';
+  }
+  if (!password_verify($currentPassword, (string)$row['password_hash'])) {
+    return 'Current password is incorrect.';
+  }
+  $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+  $up = db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+  $up->execute([$hash, $userId]);
+  return null;
+}
+
+/**
+ * Admin: force-set another user's password without knowing the old one.
+ * Caller MUST already be authorised as admin (use require_role('admin') first).
+ * Returns null on success or an error message.
+ */
+function admin_reset_password(int $targetUserId, string $newPassword): ?string {
+  if (strlen($newPassword) < 8) {
+    return 'New password must be at least 8 characters.';
+  }
+  $stmt = db()->prepare('SELECT id FROM users WHERE id = ? LIMIT 1');
+  $stmt->execute([$targetUserId]);
+  if (!$stmt->fetch()) {
+    return 'User not found.';
+  }
+  $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+  $up = db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+  $up->execute([$hash, $targetUserId]);
+  return null;
+}
+
+/** Admin: toggle a user's is_active flag. Returns the new value. */
+function admin_set_user_active(int $targetUserId, bool $active): void {
+  $up = db()->prepare('UPDATE users SET is_active = ? WHERE id = ?');
+  $up->execute([$active ? 1 : 0, $targetUserId]);
+}
+
+/** Admin: set a user's role. */
+function admin_set_user_role(int $targetUserId, string $role): ?string {
+  if (!in_array($role, ['buyer', 'seller', 'agent', 'admin'], true)) {
+    return 'Invalid role.';
+  }
+  $up = db()->prepare('UPDATE users SET role = ? WHERE id = ?');
+  $up->execute([$role, $targetUserId]);
+  return null;
+}
+
