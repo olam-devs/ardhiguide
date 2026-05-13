@@ -1,0 +1,48 @@
+# =============================================================================
+# Ardhi Guide — Apache config for the public web root.
+# =============================================================================
+
+# Directory index
+DirectoryIndex index.php index.html
+
+# Disable directory listings
+Options -Indexes
+
+# Block dotfiles like .env, .git, .htaccess from being served
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Force HTTPS (uncomment after you have installed an SSL certificate)
+# RewriteEngine On
+# RewriteCond %{HTTPS} !=on
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Reasonable security headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>
+
+# Cache static assets aggressively
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 30 days"
+    ExpiresByType image/png  "access plus 30 days"
+    ExpiresByType image/webp "access plus 30 days"
+    ExpiresByType image/svg+xml "access plus 30 days"
+    ExpiresByType text/css   "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType video/mp4  "access plus 30 days"
+</IfModule>
+
+# Allow larger uploads for listing photos and short videos (25 MB).
+# Some shared hosts ignore these directives; use cPanel "MultiPHP INI Editor" as a fallback.
+<IfModule mod_php.c>
+    php_value upload_max_filesize 32M
+    php_value post_max_size       40M
+    php_value max_file_uploads    20
+    php_value memory_limit        256M
+</IfModule>

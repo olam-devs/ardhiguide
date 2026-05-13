@@ -1,0 +1,4 @@
+# Never expose private storage directly through the web.
+# All access must go through download-document.php which enforces ownership and admin checks.
+
+Require all denied

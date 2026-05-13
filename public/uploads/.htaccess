@@ -1,0 +1,14 @@
+# Prevent PHP execution inside the uploads folder.
+# Even if someone manages to upload a .php file, Apache will refuse to run it.
+
+<FilesMatch "\.(php|phtml|phar|pl|py|cgi|sh|asp|aspx|jsp)$">
+    Require all denied
+</FilesMatch>
+
+# Allow only the expected media types
+<FilesMatch "\.(jpg|jpeg|png|gif|webp|svg|mp4|mov|webm|m4v|pdf)$">
+    Require all granted
+</FilesMatch>
+
+Options -ExecCGI
+AddHandler default-handler .php .phtml .phar

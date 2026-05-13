@@ -1,0 +1,13 @@
+# Project root .htaccess.
+# Only needed when the entire project (app/, database/, scripts/, storage/, public/)
+# is placed inside public_html. If your subdomain's Document Root is set to
+# `.../ardhi-guide/public` directly, this file is just a safety net.
+#
+# Block direct browser access to non-public folders.
+
+Require all denied
+
+# Specifically deny .env files anywhere in this tree
+<FilesMatch "(^\.env|^\.env\..*$|\.env\.example$|\.env\.production\.example$)">
+    Require all denied
+</FilesMatch>

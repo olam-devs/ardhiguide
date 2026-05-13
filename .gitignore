@@ -1,0 +1,29 @@
+# Local environment, never committed
+app/.env
+*.env.local
+.env
+
+# Real uploaded media (folder structure is kept; content is not)
+public/uploads/*
+!public/uploads/.htaccess
+!public/uploads/videos/
+public/uploads/videos/*
+!public/uploads/videos/.gitkeep
+
+storage/private/*
+!storage/private/.gitkeep
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
+*.bak
+*.swp
+*.log
+
+# Vendor / build artefacts (none today, but defensive)
+vendor/
+node_modules/
+
+# Local temp folder used to build deploy zips
+/ardhi-guide-deploy/
+ardhi-guide-deploy.zip
