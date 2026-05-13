@@ -60,13 +60,11 @@ $u = current_user();
         <a href="<?= APP_BASE_URL ?>/index.php">Browse</a>
         <a href="<?= APP_BASE_URL ?>/how-it-works.php">How it works</a>
         <a href="<?= APP_BASE_URL ?>/payment-instructions.php">Payment guide</a>
-        <?php if ($u && in_array(($u['role'] ?? ''), ['seller', 'agent', 'admin'], true)): ?>
+        <?php if ($u && in_array(($u['role'] ?? ''), ['seller', 'agent'], true)): ?>
           <a href="<?= APP_BASE_URL ?>/submit-listing.php">Submit listing</a>
-        <?php endif; ?>
-        <?php if ($u && in_array(($u['role'] ?? ''), ['seller', 'agent', 'admin'], true)): ?>
           <a href="<?= APP_BASE_URL ?>/my-listings.php">My listings</a>
         <?php endif; ?>
-        <?php if ($u): ?>
+        <?php if ($u && ($u['role'] ?? '') !== 'admin'): ?>
           <a href="<?= APP_BASE_URL ?>/my-enquiries.php">My enquiries</a>
         <?php endif; ?>
         <?php if ($u): ?>

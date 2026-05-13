@@ -11,14 +11,6 @@ if (!in_array(($u['role'] ?? ''), ['seller','agent','admin'], true)) {
   redirect('/index.php');
 }
 
-function normalize_phone(?string $p): ?string {
-  if ($p === null) return null;
-  $p = trim($p);
-  if ($p === '') return null;
-  $p = preg_replace('/[^\d\+]/', '', $p);
-  return $p;
-}
-
 function parse_price(?string $p): ?int {
   if ($p === null) return null;
   $digits = preg_replace('/[^\d]/', '', $p);
@@ -34,7 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $sizeText = trim((string)($_POST['size_text'] ?? ''));
   $price = parse_price((string)($_POST['price_tzs'] ?? ''));
   $desc = trim((string)($_POST['description'] ?? ''));
-  $wa = normalize_phone((string)($_POST['contact_whatsapp'] ?? ''));
+  $waRaw = trim((string)($_POST['contact_whatsapp'] ?? ''));
+  $wa = $waRaw === '' ? null : normalize_phone($waRaw);
+  if ($wa === '') $wa = null;
   $listingPackage = listing_package_normalize((string)($_POST['listing_package'] ?? 'basic'));
 
   if ($title === '' || $region === '') {
