@@ -16,9 +16,108 @@ function snippe_webhook_url(): string {
 }
 
 /** Idempotency-Key must be <= 30 characters (Snippe PAY_001). */
-function snippe_idempotency_key(int $listingId, string $kind = LISTING_PAY_LISTING_FEE): string {
+function snippe_idempotency_key(int $listingId, string $kind = LISTING_PAY_LISTING_FEE, bool $freshAttempt = false): string {
   $prefix = $kind === LISTING_PAY_LAND ? 'agL' : 'agF';
-  return $prefix . $listingId . substr(bin2hex(random_bytes(3)), 0, 6);
+  $base = $prefix . $listingId;
+  if (!$freshAttempt) {
+    return substr($base . 'P', 0, 30);
+  }
+  return substr($base . substr(bin2hex(random_bytes(4)), 0, 30 - strlen($base)), 0, 30);
+}
+
+function snippe_listing_snippe_status(array $listing, string $kind): string {
+  return $kind === LISTING_PAY_LAND
+    ? (string)($listing['land_snippe_status'] ?? 'none')
+    : (string)($listing['snippe_status'] ?? 'none');
+}
+
+function snippe_listing_snippe_reference(array $listing, string $kind): string {
+  return $kind === LISTING_PAY_LAND
+    ? (string)($listing['land_snippe_reference'] ?? '')
+    : (string)($listing['snippe_reference'] ?? '');
+}
+
+function snippe_listing_is_paid(array $listing, string $kind): bool {
+  if ($kind === LISTING_PAY_LAND) {
+    return (string)($listing['land_payment_status'] ?? '') === 'paid';
+  }
+  return in_array((string)($listing['payment_status'] ?? ''), ['paid', 'waived'], true);
+}
+
+function snippe_reload_listing(int $listingId): ?array {
+  $st = db()->prepare('SELECT * FROM listings WHERE id = ? LIMIT 1');
+  $st->execute([$listingId]);
+  $row = $st->fetch();
+  return $row ?: null;
+}
+
+/**
+ * Block a second payment while one is pending or already paid. Syncs pending with Snippe first.
+ *
+ * @return string|null Error message, or null if a new payment may be started
+ */
+function snippe_prepare_new_payment(int $listingId, string $kind): ?string {
+  $listing = snippe_reload_listing($listingId);
+  if (!$listing) {
+    return 'Listing not found.';
+  }
+
+  if (snippe_listing_is_paid($listing, $kind)) {
+    return $kind === LISTING_PAY_LAND
+      ? 'Payment for this plot has already been received.'
+      : 'This listing fee is already settled.';
+  }
+
+  $status = snippe_listing_snippe_status($listing, $kind);
+  if ($status === 'pending' && snippe_enabled()) {
+    snippe_sync_listing_payment($listingId, $kind);
+    $listing = snippe_reload_listing($listingId) ?? $listing;
+    if (snippe_listing_is_paid($listing, $kind)) {
+      return $kind === LISTING_PAY_LAND
+        ? 'Payment for this plot has already been received.'
+        : 'This listing fee is already settled.';
+    }
+    $status = snippe_listing_snippe_status($listing, $kind);
+  }
+
+  if ($status === 'pending') {
+    return 'A payment is already in progress on this listing. Check your phone for the prompt, or open the waiting page — do not start another payment.';
+  }
+
+  return null;
+}
+
+/** Reserve the payment slot in DB so two parallel requests cannot both call Snippe. */
+function snippe_claim_payment_slot(int $listingId, string $kind): bool {
+  if ($kind === LISTING_PAY_LAND) {
+    $sql = "UPDATE listings SET land_snippe_status = 'pending', land_snippe_last_error = NULL
+            WHERE id = ? AND land_payment_status = 'pending'
+            AND land_snippe_status IN ('none', 'failed', 'expired')";
+  } else {
+    $sql = "UPDATE listings SET snippe_status = 'pending', snippe_last_error = NULL
+            WHERE id = ? AND payment_status = 'pending'
+            AND snippe_status IN ('none', 'failed', 'expired')";
+  }
+  $st = db()->prepare($sql);
+  $st->execute([$listingId]);
+  return $st->rowCount() > 0;
+}
+
+/** Undo claim when Snippe API fails before a reference is stored. */
+function snippe_release_payment_claim(int $listingId, string $kind): void {
+  if ($kind === LISTING_PAY_LAND) {
+    db()->prepare(
+      "UPDATE listings SET land_snippe_status = 'none'
+       WHERE id = ? AND land_snippe_status = 'pending'
+       AND (land_snippe_reference IS NULL OR land_snippe_reference = '')"
+    )->execute([$listingId]);
+    return;
+  }
+  db()->prepare(
+    "UPDATE listings SET snippe_status = 'none'
+     WHERE id = ? AND snippe_status = 'pending'
+     AND (snippe_reference IS NULL OR snippe_reference = '')"
+  )->execute([$listingId]);
 }
 
 function snippe_payment_kind_from_payload(array $payload): string {
@@ -116,6 +215,18 @@ function snippe_customer_from_user(array $user): array {
  */
 function snippe_create_mobile_payment(array $listing, array $payerUser, string $phone, string $kind = LISTING_PAY_LISTING_FEE): array {
   $listingId = (int)$listing['id'];
+
+  $block = snippe_prepare_new_payment($listingId, $kind);
+  if ($block !== null) {
+    return ['ok' => false, 'err' => $block];
+  }
+
+  $freshKey = in_array(snippe_listing_snippe_status($listing, $kind), ['failed', 'expired'], true);
+  if (!snippe_claim_payment_slot($listingId, $kind)) {
+    $block = snippe_prepare_new_payment($listingId, $kind);
+    return ['ok' => false, 'err' => $block ?? 'A payment is already in progress. Please wait.'];
+  }
+
   $amount = $kind === LISTING_PAY_LAND
     ? (int)($listing['land_payment_amount_tzs'] ?? 0)
     : (int)($listing['payment_amount_tzs'] ?? 0);
@@ -148,8 +259,9 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     ],
   ];
 
-  $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId, $kind));
+  $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId, $kind, $freshKey));
   if (!$res['ok']) {
+    snippe_release_payment_claim($listingId, $kind);
     listing_snippe_mark_failed($listingId, (string)($res['err'] ?? 'Unknown error'), $kind);
     return $res;
   }
@@ -165,6 +277,18 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
  */
 function snippe_create_card_payment(array $listing, array $payerUser, ?string $phone = null, string $kind = LISTING_PAY_LISTING_FEE): array {
   $listingId = (int)$listing['id'];
+
+  $block = snippe_prepare_new_payment($listingId, $kind);
+  if ($block !== null) {
+    return ['ok' => false, 'err' => $block];
+  }
+
+  $freshKey = in_array(snippe_listing_snippe_status($listing, $kind), ['failed', 'expired'], true);
+  if (!snippe_claim_payment_slot($listingId, $kind)) {
+    $block = snippe_prepare_new_payment($listingId, $kind);
+    return ['ok' => false, 'err' => $block ?? 'A payment is already in progress. Please wait.'];
+  }
+
   $amount = $kind === LISTING_PAY_LAND
     ? (int)($listing['land_payment_amount_tzs'] ?? 0)
     : (int)($listing['payment_amount_tzs'] ?? 0);
@@ -209,8 +333,9 @@ function snippe_create_card_payment(array $listing, array $payerUser, ?string $p
 
   $body['external_reference'] = $ref !== '' ? $ref : ('LISTING-' . $listingId);
 
-  $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId, $kind));
+  $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId, $kind, $freshKey));
   if (!$res['ok']) {
+    snippe_release_payment_claim($listingId, $kind);
     listing_snippe_mark_failed($listingId, (string)($res['err'] ?? 'Unknown error'), $kind);
     return $res;
   }

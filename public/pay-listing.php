@@ -64,6 +64,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && snippe_enabled()) {
   $action = (string)($_POST['action'] ?? '');
   $postKind = listing_pay_kind_normalize((string)($_POST['pay_kind'] ?? $kind)) ?? $kind;
 
+  if (in_array($action, ['snippe_mobile', 'snippe_card'], true)) {
+    $postBlock = snippe_prepare_new_payment($id, $postKind);
+    if ($postBlock !== null) {
+      flash_set('err', $postBlock);
+      redirect('/pay-listing.php?id=' . $id . $forQs . (snippe_listing_snippe_status($listing, $postKind) === 'pending' ? '&pending=1' : ''));
+    }
+  }
+
   if ($action === 'snippe_mobile') {
     $phoneInput = trim((string)($_POST['pay_phone'] ?? ''));
     $phone = listing_pay_push_phone($listing, $phoneInput, $postKind);
@@ -163,7 +171,7 @@ ob_start();
           </div>
         <?php endif; ?>
 
-        <form method="post" class="stack" id="snippe-pay-form">
+        <form method="post" class="stack" id="snippe-pay-form" data-pay-lock="1">
           <input type="hidden" name="pay_kind" value="<?= h($kind) ?>">
           <?php if (!$pushEnabled || $assignedPhone === ''): ?>
             <div>
@@ -176,9 +184,10 @@ ob_start();
           <?php endif; ?>
 
           <div style="display:flex;gap:.65rem;flex-wrap:wrap;margin-top:.25rem">
-            <button class="btn" type="submit" name="action" value="snippe_mobile">Pay with mobile money</button>
-            <button class="btn secondary" type="submit" name="action" value="snippe_card">Pay with card</button>
+            <button class="btn" type="submit" name="action" value="snippe_mobile" data-pay-btn>Pay with mobile money</button>
+            <button class="btn secondary" type="submit" name="action" value="snippe_card" data-pay-btn>Pay with card</button>
           </div>
+          <p class="sub" id="snippe-pay-lock-msg" style="display:none;margin:.5rem 0 0;font-size:.88rem">Starting payment… please wait. Do not tap again.</p>
         </form>
       </div>
     <?php else: ?>
@@ -206,6 +215,23 @@ ob_start();
       <?php endif; ?>
     </div>
   </div>
+
+  <?php if (snippe_enabled() && !($showPending && $snippeStatus === 'pending')): ?>
+  <script>
+  (function () {
+    const form = document.getElementById('snippe-pay-form');
+    if (!form) return;
+    let locked = false;
+    form.addEventListener('submit', function () {
+      if (locked) return false;
+      locked = true;
+      form.querySelectorAll('[data-pay-btn]').forEach(function (b) { b.disabled = true; });
+      const msg = document.getElementById('snippe-pay-lock-msg');
+      if (msg) msg.style.display = 'block';
+    });
+  })();
+  </script>
+  <?php endif; ?>
 
   <?php if ($showPending && snippe_enabled()): ?>
   <script>
