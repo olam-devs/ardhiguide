@@ -204,7 +204,7 @@ function listing_admin_save_land_payment_settings(
   }
 
   $st = db()->prepare(
-    'SELECT land_payment_reference, land_payment_status FROM listings WHERE id = ?'
+    'SELECT land_payment_reference, land_payment_status, verification_status FROM listings WHERE id = ?'
   );
   $st->execute([$listingId]);
   $row = $st->fetch();
@@ -212,8 +212,11 @@ function listing_admin_save_land_payment_settings(
     return 'Listing not found.';
   }
 
+  $approved = (string)($row['verification_status'] ?? '') === 'approved';
+  $curStatus = (string)($row['land_payment_status'] ?? 'none');
+
   $ref = (string)($row['land_payment_reference'] ?? '');
-  if ($ref === '' && $openPayment && $amountTzs > 0) {
+  if ($ref === '' && $openPayment && $amountTzs > 0 && $approved) {
     $ref = listing_land_payment_reference($listingId);
   }
 
@@ -221,10 +224,11 @@ function listing_admin_save_land_payment_settings(
   if ($amountTzs <= 0) {
     $status = 'none';
     $ref = null;
+  } elseif (!$approved) {
+    $status = $curStatus === 'paid' ? 'paid' : 'none';
   } elseif ($openPayment) {
-    $status = 'pending';
+    $status = $curStatus === 'paid' ? 'paid' : 'pending';
   } else {
-    $curStatus = (string)($row['land_payment_status'] ?? 'none');
     $status = $curStatus === 'paid' ? 'paid' : 'none';
   }
 

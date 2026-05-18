@@ -69,9 +69,11 @@ function listing_admin_update(int $listingId, array $data): ?string {
   $priceDigits = preg_replace('/\D+/', '', $priceRaw);
   $price = $priceDigits !== '' ? (int)$priceDigits : null;
 
+  $package = listing_package_normalize((string)($data['listing_package'] ?? 'basic'));
+
   $stmt = db()->prepare(
     'UPDATE listings SET title = ?, category = ?, region = ?, location_text = ?, size_text = ?,
-     price_tzs = ?, description = ?, contact_whatsapp = ? WHERE id = ?'
+     price_tzs = ?, description = ?, contact_whatsapp = ?, listing_package = ? WHERE id = ?'
   );
   $stmt->execute([
     $title,
@@ -82,7 +84,15 @@ function listing_admin_update(int $listingId, array $data): ?string {
     $price,
     $desc !== '' ? $desc : null,
     $wa,
+    $package,
     $listingId,
   ]);
   return null;
+}
+
+/** @return list<array{file_path:string}> */
+function listing_admin_images(int $listingId): array {
+  $st = db()->prepare('SELECT file_path FROM listing_images WHERE listing_id = ? ORDER BY id ASC');
+  $st->execute([$listingId]);
+  return $st->fetchAll();
 }
