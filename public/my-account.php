@@ -79,7 +79,7 @@ ob_start();
           You are a <strong>Buyer</strong>. To list land and see <strong>My listings</strong>, use <strong>Switch to Seller</strong> below.
         </p>
       <?php endif; ?>
-      <motion style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line)">
+      <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line)">
         <div class="kicker">Quick links</div>
         <div style="display:flex;gap:.55rem;flex-wrap:wrap;margin-top:.6rem">
           <a class="btn secondary" href="<?= APP_BASE_URL ?>/my-payments.php">Payments</a>
@@ -98,8 +98,8 @@ ob_start();
           <?php if ($role === 'admin'): ?>
             <a class="btn" href="<?= APP_BASE_URL ?>/admin/listings.php">Admin panel</a>
           <?php endif; ?>
-        </motion>
-      </motion>
+        </div>
+      </div>
       <?php if ($pubFees || $landPays): ?>
         <div style="margin-top:1rem;padding:1rem;background:var(--gold-50);border-radius:12px;border:1px solid rgba(165,120,38,.25)">
           <strong>Payment due</strong>
@@ -111,7 +111,7 @@ ob_start();
               <li><a href="<?= APP_BASE_URL ?>/pay-listing.php?id=<?= (int)$row['id'] ?>&for=land">Pay for plot: <?= h((string)$row['title']) ?></a></li>
             <?php endforeach; ?>
           </ul>
-        </motion>
+        </div>
       <?php endif; ?>
     </div>
 
