@@ -167,8 +167,25 @@ if ($justPaid) {
 if (!$showPending && isset($_GET['pending'])) {
   redirect('/pay-listing.php?id=' . $id . $forQs);
 }
-$defaultPhone = $assignedPhone !== '' ? $assignedPhone : trim((string)($payerUser['phone'] ?? ''));
+
+$listing = snippe_reload_listing($id) ?: $listing;
+$ctx = listing_pay_resolve($listing, $u, $for);
+if ($ctx === null) {
+  flash_set('err', 'Payment is not available for this listing.');
+  redirect('/listing.php?id=' . $id);
+}
+$kind = (string)$ctx['kind'];
+$amount = (int)$ctx['amount'];
+$ref = (string)$ctx['reference'];
+$pushEnabled = (bool)$ctx['push_enabled'];
+$assignedPhone = (string)$ctx['push_phone'];
+$snippeStatus = (string)$ctx['snippe_status'];
 $snippeErr = (string)$ctx['snippe_error'];
+$showPending = $snippeStatus === 'pending';
+
+$defaultPhone = $assignedPhone !== '' ? $assignedPhone : trim((string)($payerUser['phone'] ?? ''));
+$landAmount = (int)($listing['land_payment_amount_tzs'] ?? 0);
+$feeAmount = (int)($listing['payment_amount_tzs'] ?? 0);
 
 ob_start();
 ?>
@@ -178,9 +195,18 @@ ob_start();
     <div class="sub"><?= h((string)$ctx['intro']) ?></div>
 
     <div class="card pad" style="margin-top:1rem;background:var(--bg2)">
+      <div class="sub" style="margin:0 0 .35rem;font-size:.88rem;text-transform:uppercase;letter-spacing:.04em;font-weight:700">
+        <?= $kind === LISTING_PAY_LAND ? 'Plot payment (buyer)' : 'Publication fee (seller)' ?>
+      </div>
       <div style="font-weight:900;font-size:1.35rem;color:var(--brand-900)"><?= h(format_tzs((string)$amount)) ?></div>
       <div class="sub" style="margin-top:.5rem">
         <strong><?= h($title) ?></strong><br>
+        <?php if ($kind === LISTING_PAY_LAND && $feeAmount > 0 && (int)($listing['created_by_user_id'] ?? 0) === (int)$u['id']): ?>
+          <span style="font-size:.88rem">Your seller publication fee (<?= h(format_tzs((string)$feeAmount)) ?>) is separate — <a href="<?= APP_BASE_URL ?>/pay-listing.php?id=<?= $id ?>">pay listing fee</a>.</span><br>
+        <?php endif; ?>
+        <?php if ($kind !== LISTING_PAY_LAND && $landAmount >= snippe_min_amount_tzs() && listing_land_payment_open($listing)): ?>
+          <span style="font-size:.88rem">Buyer plot payment is <?= h(format_tzs((string)$landAmount)) ?> — <a href="<?= APP_BASE_URL ?>/pay-listing.php?id=<?= $id ?>&for=land">pay for plot</a>.</span><br>
+        <?php endif; ?>
         <?php if (!empty($ctx['show_package'])): ?>
           Package: <?= h((string)($listing['listing_package'] ?? 'basic')) ?><br>
         <?php endif; ?>

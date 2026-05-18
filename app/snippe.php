@@ -257,6 +257,7 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     return ['ok' => false, 'err' => $block ?? 'Could not start payment. Refresh the page and try again.'];
   }
 
+  $listing = snippe_reload_listing($listingId) ?? $listing;
   $amount = $kind === LISTING_PAY_LAND
     ? (int)($listing['land_payment_amount_tzs'] ?? 0)
     : (int)($listing['payment_amount_tzs'] ?? 0);
@@ -333,6 +334,7 @@ function snippe_create_card_payment(array $listing, array $payerUser, ?string $p
     return ['ok' => false, 'err' => $block ?? 'Could not start payment. Refresh the page and try again.'];
   }
 
+  $listing = snippe_reload_listing($listingId) ?? $listing;
   $amount = $kind === LISTING_PAY_LAND
     ? (int)($listing['land_payment_amount_tzs'] ?? 0)
     : (int)($listing['payment_amount_tzs'] ?? 0);

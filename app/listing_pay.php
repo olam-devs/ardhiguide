@@ -204,13 +204,16 @@ function listing_admin_save_land_payment_settings(
   }
 
   $st = db()->prepare(
-    'SELECT land_payment_reference, land_payment_status, verification_status FROM listings WHERE id = ?'
+    'SELECT land_payment_reference, land_payment_status, land_payment_amount_tzs, land_snippe_status,
+            verification_status FROM listings WHERE id = ?'
   );
   $st->execute([$listingId]);
   $row = $st->fetch();
   if (!$row) {
     return 'Listing not found.';
   }
+
+  $oldAmount = (int)($row['land_payment_amount_tzs'] ?? 0);
 
   $approved = (string)($row['verification_status'] ?? '') === 'approved';
   $curStatus = (string)($row['land_payment_status'] ?? 'none');
@@ -252,6 +255,18 @@ function listing_admin_save_land_payment_settings(
   $sql .= ' WHERE id = ?';
   $params[] = $listingId;
   db()->prepare($sql)->execute($params);
+
+  if ($amountTzs !== $oldAmount && ($row['land_payment_status'] ?? '') === 'pending') {
+    $snippeSt = (string)($row['land_snippe_status'] ?? 'none');
+    if (in_array($snippeSt, ['pending', 'failed', 'expired', 'completed'], true)) {
+      snippe_reset_payment_attempt(
+        $listingId,
+        LISTING_PAY_LAND,
+        'Payment amount was updated. Start a new payment for the new amount.'
+      );
+    }
+  }
+
   return null;
 }
 

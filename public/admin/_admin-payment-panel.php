@@ -129,7 +129,7 @@ $sellerStatus = (string)($listing['payment_status'] ?? 'pending');
           <button class="btn secondary" type="submit" name="action" value="mark_land_waived" formnovalidate onclick="return confirm('Reset buyer payment record?');">Reset buyer payment</button>
         <?php endif; ?>
         <?php if ($isApproved && (int)($listing['land_payment_amount_tzs'] ?? 0) >= snippe_min_amount_tzs()): ?>
-          <a class="btn ghost" href="<?= APP_BASE_URL ?>/pay-listing.php?id=<?= $listingId ?>&for=land" target="_blank" rel="noreferrer">Preview buyer pay page</a>
+          <a class="btn ghost" href="<?= APP_BASE_URL ?>/pay-listing.php?id=<?= $listingId ?>&for=land" target="_blank" rel="noreferrer">Preview buyer pay page (?for=land)</a>
         <?php endif; ?>
       </div>
     </form>
