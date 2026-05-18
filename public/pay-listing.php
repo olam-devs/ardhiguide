@@ -90,6 +90,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && snippe_enabled()) {
     redirect('/pay-listing.php?id=' . $id . $forQs . '&pending=1');
   }
 
+  if ($action === 'snippe_abandon') {
+    $postKind = listing_pay_kind_normalize((string)($_POST['pay_kind'] ?? $kind)) ?? $kind;
+    $msg = snippe_abandon_pending_payment($id, $postKind);
+    if ($msg !== null) {
+      flash_set(str_contains($msg, 'confirmed') ? 'ok' : 'err', $msg);
+    } else {
+      flash_set('ok', 'You can start a new payment now.');
+    }
+    redirect('/pay-listing.php?id=' . $id . $forQs);
+  }
+
   if ($action === 'snippe_card') {
     $phoneInput = trim((string)($_POST['pay_phone'] ?? ''));
     $phone = $phoneInput !== '' ? listing_pay_push_phone($listing, $phoneInput, $postKind) : null;
@@ -118,13 +129,16 @@ if ($snippeStatus === 'pending' && snippe_enabled()) {
     $snippeStatus = (string)$ctx['snippe_status'];
   }
 }
-$showPending = isset($_GET['pending']) || $snippeStatus === 'pending';
+$showPending = $snippeStatus === 'pending';
 $justPaid = ($kind === LISTING_PAY_LAND
   ? (($listing['land_payment_status'] ?? '') === 'paid')
   : (($listing['payment_status'] ?? '') === 'paid'));
-if ($justPaid && isset($_GET['pending'])) {
+if ($justPaid) {
   flash_set('ok', 'Payment received. Thank you!');
   redirect((string)$ctx['done_url']);
+}
+if (!$showPending && isset($_GET['pending'])) {
+  redirect('/pay-listing.php?id=' . $id . $forQs);
 }
 $defaultPhone = $assignedPhone !== '' ? $assignedPhone : trim((string)($payerUser['phone'] ?? ''));
 $snippeErr = (string)$ctx['snippe_error'];
@@ -152,7 +166,14 @@ ob_start();
         <div class="kicker">Waiting for payment</div>
         <p class="sub" style="margin:.5rem 0 0">Approve the prompt on your phone. This page will update when payment is confirmed.</p>
         <p class="sub" id="snippe-wait-status" style="margin-top:.5rem;font-weight:700">Checking status…</p>
-        <button type="button" class="btn secondary" id="snippe-check-now" style="margin-top:.75rem">I entered my PIN — check again</button>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+          <button type="button" class="btn secondary" id="snippe-check-now">I entered my PIN — check again</button>
+          <form method="post" style="margin:0" onsubmit="return confirm('Clear this attempt and start a new payment? Only do this if you did NOT complete payment on your phone.');">
+            <input type="hidden" name="pay_kind" value="<?= h($kind) ?>">
+            <button class="btn ghost" type="submit" name="action" value="snippe_abandon">Start over</button>
+          </form>
+        </div>
+        <p class="sub" style="margin:.65rem 0 0;font-size:.85rem">If the prompt disappeared or Snippe shows unpaid, tap <strong>Start over</strong> to pay again.</p>
       </div>
     <?php endif; ?>
 
@@ -267,7 +288,12 @@ ob_start();
             setTimeout(() => window.location.reload(), 2500);
             return;
           }
-          statusEl.textContent = 'Still waiting… approve the prompt on your phone, then tap check again.';
+          if (data.snippe_status === 'none' || data.snippe_status === 'failed') {
+            stopped = true;
+            window.location.reload();
+            return;
+          }
+          statusEl.textContent = 'Still waiting… approve the prompt on your phone, or tap Start over if it failed.';
         })
         .catch(() => { if (statusEl) statusEl.textContent = 'Could not check status. Tap check again or refresh.'; });
     }

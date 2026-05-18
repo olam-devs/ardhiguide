@@ -81,7 +81,7 @@ function snippe_prepare_new_payment(int $listingId, string $kind): ?string {
   }
 
   if ($status === 'pending') {
-    return 'A payment is already in progress on this listing. Check your phone for the prompt, or open the waiting page — do not start another payment.';
+    return 'A payment is already in progress. Use “Start over” on the pay page if the phone prompt did not work.';
   }
 
   return null;
@@ -479,21 +479,98 @@ function snippe_request_header(string $name): ?string {
 }
 
 /**
- * @return array{ok:bool,status?:string,err?:string}
+ * @return array{ok:bool,status?:string,expires_at?:string,failure_reason?:string,err?:string,http_code?:int}
  */
 function snippe_fetch_payment_status(string $snippeReference): array {
   if ($snippeReference === '') {
-    return ['ok' => false, 'err' => 'No payment reference'];
+    return ['ok' => false, 'err' => 'No payment reference', 'http_code' => 0];
   }
   $res = snippe_api_request('GET', '/v1/payments/' . rawurlencode($snippeReference), null, null);
   if (!$res['ok']) {
-    return ['ok' => false, 'err' => (string)($res['err'] ?? 'Could not fetch payment status')];
+    return [
+      'ok' => false,
+      'err' => (string)($res['err'] ?? 'Could not fetch payment status'),
+      'http_code' => (int)($res['http_code'] ?? 0),
+    ];
   }
   $status = strtolower((string)($res['status'] ?? ''));
   if ($status === '') {
-    return ['ok' => false, 'err' => 'Payment status missing in API response'];
+    return ['ok' => false, 'err' => 'Payment status missing in API response', 'http_code' => (int)($res['http_code'] ?? 200)];
   }
-  return ['ok' => true, 'status' => $status];
+  return [
+    'ok' => true,
+    'status' => $status,
+    'expires_at' => isset($res['expires_at']) ? (string)$res['expires_at'] : null,
+    'failure_reason' => isset($res['failure_reason']) ? (string)$res['failure_reason'] : null,
+    'http_code' => (int)($res['http_code'] ?? 200),
+  ];
+}
+
+/** Clear a stuck online payment attempt so the user can try again. */
+function snippe_reset_payment_attempt(int $listingId, string $kind, ?string $message = null): void {
+  $msg = $message !== null && $message !== '' ? (strlen($message) > 250 ? substr($message, 0, 250) : $message) : null;
+  if ($kind === LISTING_PAY_LAND) {
+    db()->prepare(
+      "UPDATE listings SET land_snippe_status = 'none', land_snippe_reference = NULL, land_snippe_last_error = ?
+       WHERE id = ? AND land_payment_status = 'pending'"
+    )->execute([$msg, $listingId]);
+    return;
+  }
+  db()->prepare(
+    "UPDATE listings SET snippe_status = 'none', snippe_reference = NULL, snippe_last_error = ?
+     WHERE id = ? AND payment_status = 'pending'"
+  )->execute([$msg, $listingId]);
+}
+
+/**
+ * Sync with Snippe, then clear a stuck pending payment when it did not complete.
+ *
+ * @return string|null Flash message (success info) or error
+ */
+function snippe_abandon_pending_payment(int $listingId, string $kind): ?string {
+  $listing = snippe_reload_listing($listingId);
+  if (!$listing) {
+    return 'Listing not found.';
+  }
+  if (snippe_listing_is_paid($listing, $kind)) {
+    return 'This payment has already been completed.';
+  }
+
+  snippe_sync_listing_payment($listingId, $kind);
+  $listing = snippe_reload_listing($listingId) ?? $listing;
+
+  if (snippe_listing_is_paid($listing, $kind)) {
+    return 'Payment confirmed — thank you!';
+  }
+
+  $local = snippe_listing_snippe_status($listing, $kind);
+  if ($local !== 'pending') {
+    return null;
+  }
+
+  $ref = snippe_listing_snippe_reference($listing, $kind);
+  if ($ref !== '') {
+    $api = snippe_fetch_payment_status($ref);
+    if ($api['ok'] && ($api['status'] ?? '') === 'completed') {
+      snippe_apply_api_status($listingId, 'completed', $kind);
+      return 'Payment confirmed — thank you!';
+    }
+    if ($api['ok'] && ($api['status'] ?? '') === 'pending') {
+      snippe_reset_payment_attempt(
+        $listingId,
+        $kind,
+        'Previous prompt was not completed. Start a new payment below.'
+      );
+      return null;
+    }
+  }
+
+  snippe_reset_payment_attempt(
+    $listingId,
+    $kind,
+    'Previous payment attempt cleared. You can pay again.'
+  );
+  return null;
 }
 
 function snippe_apply_api_status(int $listingId, string $apiStatus, string $kind, ?string $failureReason = null): void {
@@ -509,7 +586,9 @@ function snippe_apply_api_status(int $listingId, string $apiStatus, string $kind
   }
   if ($status === 'expired') {
     listing_snippe_mark_expired($listingId, $kind);
+    return;
   }
+  listing_snippe_mark_failed($listingId, $failureReason ?? ('Payment status: ' . $status), $kind);
 }
 
 /** Poll Snippe when webhook is delayed or misconfigured. Returns true if listing row may have changed. */
@@ -529,27 +608,49 @@ function snippe_sync_listing_payment(int $listingId, string $kind = LISTING_PAY_
       return false;
     }
     $local = (string)($row['land_snippe_status'] ?? 'none');
-    $ref = (string)($row['land_snippe_reference'] ?? '');
+    $ref = trim((string)($row['land_snippe_reference'] ?? ''));
   } else {
     if (($row['payment_status'] ?? '') === 'paid') {
       return false;
     }
     $local = (string)($row['snippe_status'] ?? 'none');
-    $ref = (string)($row['snippe_reference'] ?? '');
+    $ref = trim((string)($row['snippe_reference'] ?? ''));
   }
 
-  if ($ref === '' || $local !== 'pending') {
+  if ($local !== 'pending') {
     return false;
+  }
+
+  if ($ref === '') {
+    snippe_reset_payment_attempt($listingId, $kind, 'Previous payment did not start correctly. Try again.');
+    return true;
   }
 
   $api = snippe_fetch_payment_status($ref);
   if (!$api['ok'] || empty($api['status'])) {
+    $httpCode = (int)($api['http_code'] ?? 0);
+    if ($httpCode === 404) {
+      snippe_reset_payment_attempt($listingId, $kind, 'Payment not found at provider. Start a new payment.');
+      return true;
+    }
     return false;
   }
-  if ($api['status'] === 'pending') {
+
+  $apiStatus = (string)$api['status'];
+  if ($apiStatus === 'pending') {
+    $expiresAt = (string)($api['expires_at'] ?? '');
+    if ($expiresAt !== '') {
+      $expTs = strtotime($expiresAt);
+      if ($expTs !== false && $expTs < time()) {
+        listing_snippe_mark_expired($listingId, $kind);
+        return true;
+      }
+    }
     return false;
   }
-  snippe_apply_api_status($listingId, (string)$api['status'], $kind);
+
+  $failReason = (string)($api['failure_reason'] ?? '');
+  snippe_apply_api_status($listingId, $apiStatus, $kind, $failReason !== '' ? $failReason : null);
   return true;
 }
 
