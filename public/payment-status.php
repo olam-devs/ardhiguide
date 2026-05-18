@@ -38,16 +38,26 @@ $paid = $kind === LISTING_PAY_LAND
   ? (($row['land_payment_status'] ?? '') === 'paid')
   : (($row['payment_status'] ?? '') === 'paid');
 
-if (!$paid && $snippeStatus === 'pending' && snippe_enabled()) {
-  snippe_sync_listing_payment($id, $kind);
-  $st->execute([$id]);
-  $row = $st->fetch() ?: $row;
-  $snippeStatus = $kind === LISTING_PAY_LAND
-    ? (string)($row['land_snippe_status'] ?? 'none')
-    : (string)($row['snippe_status'] ?? 'none');
-  $paid = $kind === LISTING_PAY_LAND
-    ? (($row['land_payment_status'] ?? '') === 'paid')
-    : (($row['payment_status'] ?? '') === 'paid');
+if (!$paid && snippe_enabled()) {
+  if ($snippeStatus === 'pending') {
+    snippe_sync_listing_payment($id, $kind);
+    $st->execute([$id]);
+    $row = $st->fetch() ?: $row;
+    $snippeStatus = $kind === LISTING_PAY_LAND
+      ? (string)($row['land_snippe_status'] ?? 'none')
+      : (string)($row['snippe_status'] ?? 'none');
+    $paid = $kind === LISTING_PAY_LAND
+      ? (($row['land_payment_status'] ?? '') === 'paid')
+      : (($row['payment_status'] ?? '') === 'paid');
+  }
+  if (in_array($snippeStatus, ['expired', 'failed'], true)) {
+    snippe_normalize_for_retry($id, $kind);
+    $st->execute([$id]);
+    $row = $st->fetch() ?: $row;
+    $snippeStatus = $kind === LISTING_PAY_LAND
+      ? (string)($row['land_snippe_status'] ?? 'none')
+      : (string)($row['snippe_status'] ?? 'none');
+  }
 }
 
 if ($kind === LISTING_PAY_LAND) {

@@ -87,14 +87,29 @@ function snippe_prepare_new_payment(int $listingId, string $kind): ?string {
   return null;
 }
 
+/** After failed/expired, clear Snippe reference so the next attempt is a new payment. */
+function snippe_normalize_for_retry(int $listingId, string $kind): void {
+  if ($kind === LISTING_PAY_LAND) {
+    db()->prepare(
+      "UPDATE listings SET land_snippe_status = 'none', land_snippe_reference = NULL
+       WHERE id = ? AND land_payment_status = 'pending' AND land_snippe_status IN ('failed', 'expired')"
+    )->execute([$listingId]);
+    return;
+  }
+  db()->prepare(
+    "UPDATE listings SET snippe_status = 'none', snippe_reference = NULL
+     WHERE id = ? AND payment_status = 'pending' AND snippe_status IN ('failed', 'expired')"
+  )->execute([$listingId]);
+}
+
 /** Reserve the payment slot in DB so two parallel requests cannot both call Snippe. */
 function snippe_claim_payment_slot(int $listingId, string $kind): bool {
   if ($kind === LISTING_PAY_LAND) {
-    $sql = "UPDATE listings SET land_snippe_status = 'pending', land_snippe_last_error = NULL
+    $sql = "UPDATE listings SET land_snippe_status = 'pending', land_snippe_reference = NULL, land_snippe_last_error = NULL
             WHERE id = ? AND land_payment_status = 'pending'
             AND land_snippe_status IN ('none', 'failed', 'expired')";
   } else {
-    $sql = "UPDATE listings SET snippe_status = 'pending', snippe_last_error = NULL
+    $sql = "UPDATE listings SET snippe_status = 'pending', snippe_reference = NULL, snippe_last_error = NULL
             WHERE id = ? AND payment_status = 'pending'
             AND snippe_status IN ('none', 'failed', 'expired')";
   }
@@ -221,7 +236,13 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     return ['ok' => false, 'err' => $block];
   }
 
-  $freshKey = in_array(snippe_listing_snippe_status($listing, $kind), ['failed', 'expired'], true);
+  $listing = snippe_reload_listing($listingId) ?? $listing;
+  $priorStatus = snippe_listing_snippe_status($listing, $kind);
+  if (in_array($priorStatus, ['failed', 'expired'], true)) {
+    snippe_normalize_for_retry($listingId, $kind);
+    $listing = snippe_reload_listing($listingId) ?? $listing;
+  }
+  $freshKey = in_array($priorStatus, ['failed', 'expired'], true);
   if (!snippe_claim_payment_slot($listingId, $kind)) {
     $block = snippe_prepare_new_payment($listingId, $kind);
     return ['ok' => false, 'err' => $block ?? 'A payment is already in progress. Please wait.'];
@@ -231,6 +252,7 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     ? (int)($listing['land_payment_amount_tzs'] ?? 0)
     : (int)($listing['payment_amount_tzs'] ?? 0);
   if ($amount < snippe_min_amount_tzs()) {
+    snippe_release_payment_claim($listingId, $kind);
     return ['ok' => false, 'err' => 'Amount must be at least ' . snippe_min_amount_tzs() . ' TZS.'];
   }
 
@@ -242,6 +264,10 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
   $ref = $kind === LISTING_PAY_LAND
     ? (string)($listing['land_payment_reference'] ?? '')
     : (string)($listing['payment_reference'] ?? '');
+  $extRef = $ref !== '' ? $ref : ('LISTING-' . $listingId);
+  if ($freshKey) {
+    $extRef .= '-R' . substr((string)time(), -8);
+  }
   $body = [
     'payment_type' => 'mobile',
     'details' => [
@@ -251,7 +277,7 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     'phone_number' => $phoneNorm,
     'customer' => snippe_customer_from_user($payerUser),
     'webhook_url' => snippe_webhook_url(),
-    'external_reference' => $ref !== '' ? $ref : ('LISTING-' . $listingId),
+    'external_reference' => $extRef,
     'metadata' => [
       'listing_id' => (string)$listingId,
       'payment_reference' => $ref,
@@ -283,7 +309,13 @@ function snippe_create_card_payment(array $listing, array $payerUser, ?string $p
     return ['ok' => false, 'err' => $block];
   }
 
-  $freshKey = in_array(snippe_listing_snippe_status($listing, $kind), ['failed', 'expired'], true);
+  $listing = snippe_reload_listing($listingId) ?? $listing;
+  $priorStatus = snippe_listing_snippe_status($listing, $kind);
+  if (in_array($priorStatus, ['failed', 'expired'], true)) {
+    snippe_normalize_for_retry($listingId, $kind);
+    $listing = snippe_reload_listing($listingId) ?? $listing;
+  }
+  $freshKey = in_array($priorStatus, ['failed', 'expired'], true);
   if (!snippe_claim_payment_slot($listingId, $kind)) {
     $block = snippe_prepare_new_payment($listingId, $kind);
     return ['ok' => false, 'err' => $block ?? 'A payment is already in progress. Please wait.'];
@@ -293,6 +325,7 @@ function snippe_create_card_payment(array $listing, array $payerUser, ?string $p
     ? (int)($listing['land_payment_amount_tzs'] ?? 0)
     : (int)($listing['payment_amount_tzs'] ?? 0);
   if ($amount < snippe_min_amount_tzs()) {
+    snippe_release_payment_claim($listingId, $kind);
     return ['ok' => false, 'err' => 'Amount must be at least ' . snippe_min_amount_tzs() . ' TZS.'];
   }
 
@@ -331,7 +364,11 @@ function snippe_create_card_payment(array $listing, array $payerUser, ?string $p
     }
   }
 
-  $body['external_reference'] = $ref !== '' ? $ref : ('LISTING-' . $listingId);
+  $extRef = $ref !== '' ? $ref : ('LISTING-' . $listingId);
+  if ($freshKey) {
+    $extRef .= '-R' . substr((string)time(), -8);
+  }
+  $body['external_reference'] = $extRef;
 
   $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId, $kind, $freshKey));
   if (!$res['ok']) {
@@ -390,10 +427,14 @@ function listing_snippe_mark_completed(int $listingId, string $kind = LISTING_PA
 
 function listing_snippe_mark_expired(int $listingId, string $kind = LISTING_PAY_LISTING_FEE): void {
   if ($kind === LISTING_PAY_LAND) {
-    db()->prepare("UPDATE listings SET land_snippe_status = 'expired' WHERE id = ?")->execute([$listingId]);
+    db()->prepare(
+      "UPDATE listings SET land_snippe_status = 'expired', land_snippe_reference = NULL, land_snippe_last_error = NULL WHERE id = ?"
+    )->execute([$listingId]);
     return;
   }
-  db()->prepare("UPDATE listings SET snippe_status = 'expired' WHERE id = ?")->execute([$listingId]);
+  db()->prepare(
+    "UPDATE listings SET snippe_status = 'expired', snippe_reference = NULL, snippe_last_error = NULL WHERE id = ?"
+  )->execute([$listingId]);
 }
 
 /**

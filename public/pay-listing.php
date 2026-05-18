@@ -120,13 +120,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && snippe_enabled()) {
 }
 
 $title = (string)$listing['title'];
-if ($snippeStatus === 'pending' && snippe_enabled()) {
-  snippe_sync_listing_payment($id, $kind);
-  $st->execute([$id]);
-  $listing = $st->fetch() ?: $listing;
-  $ctx = listing_pay_resolve($listing, $u, $for);
-  if ($ctx !== null) {
-    $snippeStatus = (string)$ctx['snippe_status'];
+$retryNotice = '';
+if (snippe_enabled()) {
+  if ($snippeStatus === 'pending') {
+    snippe_sync_listing_payment($id, $kind);
+    $st->execute([$id]);
+    $listing = $st->fetch() ?: $listing;
+    $ctx = listing_pay_resolve($listing, $u, $for);
+    if ($ctx !== null) {
+      $snippeStatus = (string)$ctx['snippe_status'];
+    }
+  }
+  if (in_array($snippeStatus, ['expired', 'failed'], true)) {
+    $retryNotice = $snippeStatus === 'expired'
+      ? 'Your previous payment attempt expired. You can pay again below.'
+      : 'Your previous payment did not complete. You can try again below.';
+    snippe_normalize_for_retry($id, $kind);
+    $st->execute([$id]);
+    $listing = $st->fetch() ?: $listing;
+    $ctx = listing_pay_resolve($listing, $u, $for);
+    if ($ctx !== null) {
+      $snippeStatus = (string)$ctx['snippe_status'];
+      $snippeErr = (string)$ctx['snippe_error'];
+    }
   }
 }
 $showPending = $snippeStatus === 'pending';
@@ -282,15 +298,9 @@ ob_start();
             setTimeout(() => window.location.reload(), 2500);
             return;
           }
-          if (data.snippe_status === 'expired') {
-            statusEl.textContent = 'Payment expired. Start a new payment.';
+          if (data.snippe_status === 'expired' || data.snippe_status === 'failed' || data.snippe_status === 'none') {
             stopped = true;
-            setTimeout(() => window.location.reload(), 2500);
-            return;
-          }
-          if (data.snippe_status === 'none' || data.snippe_status === 'failed') {
-            stopped = true;
-            window.location.reload();
+            window.location.replace('<?= APP_BASE_URL ?>/pay-listing.php?id=' + listingId + forQs);
             return;
           }
           statusEl.textContent = 'Still waiting… approve the prompt on your phone, or tap Start over if it failed.';
