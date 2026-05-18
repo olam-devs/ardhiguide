@@ -96,7 +96,7 @@ ob_start();
                   <?php if ($st === 'approved'): ?>
                     <a class="btn secondary" style="padding:.55rem .9rem" href="<?= APP_BASE_URL ?>/listing.php?id=<?= (int)$r['id'] ?>">Public view</a>
                   <?php endif; ?>
-                  <a class="btn secondary" style="padding:.55rem .9rem" href="<?= APP_BASE_URL ?>/preview-listing.php?id=<?= (int)$r['id'] ?>">Preview</a>
+                  <a class="btn secondary" style="padding:.55rem .9rem" href="<?= APP_BASE_URL ?>/preview-listing.php?id=<?= (int)$r['id'] ?>"><?= !empty($r['video_path']) ? 'Preview + video' : 'Preview' ?></a>
                 </div>
               </td>
             </tr>

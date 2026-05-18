@@ -98,6 +98,73 @@
     }
   }
 
+  // ---- Toast notifications ----
+  const toastHost = document.getElementById('toast-host');
+  function showToast(message, type) {
+    if (!toastHost || !message) return;
+    const el = document.createElement('div');
+    el.className = 'toast ' + (type === 'err' ? 'err' : type === 'info' ? 'info' : 'ok');
+    el.textContent = message;
+    toastHost.appendChild(el);
+    window.setTimeout(() => {
+      el.style.opacity = '0';
+      el.style.transition = 'opacity .3s ease';
+      window.setTimeout(() => el.remove(), 320);
+    }, type === 'info' ? 2200 : 4500);
+  }
+
+  if (window.__pageFlash) {
+    if (window.__pageFlash.ok) showToast(window.__pageFlash.ok, 'ok');
+    if (window.__pageFlash.err) showToast(window.__pageFlash.err, 'err');
+  }
+
+  if (window.__adminHighlight) {
+    const h = window.__adminHighlight;
+    const row = document.getElementById('listing-row-' + h.id);
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const btn = row.querySelector('[data-action="' + h.action + '"]');
+      if (btn) {
+        btn.classList.add('is-pressed');
+        window.setTimeout(() => btn.classList.remove('is-pressed'), 1200);
+      }
+    }
+    if (h.action && h.action !== 'delete') {
+      const labels = {
+        approve: h.fail ? 'Approve failed' : 'Approved successfully',
+        reject: h.fail ? 'Reject failed' : 'Rejected successfully',
+        review: h.fail ? 'Update failed' : 'Marked under review',
+        feature_on: h.fail ? 'Feature failed' : 'Listing featured',
+        feature_off: h.fail ? 'Unfeature failed' : 'Unfeatured',
+        badge: h.fail ? 'Badge save failed' : 'Badge saved',
+      };
+      showToast(labels[h.action] || (h.fail ? 'Action failed' : 'Done'), h.fail ? 'err' : 'ok');
+    }
+    if (h.action === 'delete' && !h.fail) {
+      showToast('Listing deleted', 'ok');
+    }
+  }
+
+  document.querySelectorAll('.admin-action-form').forEach((form) => {
+    form.addEventListener('submit', (ev) => {
+      const btn = ev.submitter;
+      if (!btn || !(btn instanceof HTMLButtonElement)) return;
+      btn.classList.add('is-pressed', 'is-loading');
+      const action = btn.getAttribute('data-action') || btn.value || 'action';
+      const id = form.getAttribute('data-listing-id') || '';
+      const pending = {
+        approve: 'Approving listing…',
+        reject: 'Rejecting listing…',
+        review: 'Setting under review…',
+        feature_on: 'Featuring listing…',
+        feature_off: 'Removing feature…',
+        badge: 'Saving badge…',
+        delete: 'Deleting listing…',
+      };
+      showToast(pending[action] || 'Processing…', 'info');
+    });
+  });
+
   // ---- Password show / hide toggle ----
   document.addEventListener('click', (ev) => {
     const btn = ev.target.closest && ev.target.closest('.pwd-toggle');

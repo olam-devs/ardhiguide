@@ -53,6 +53,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     redirect('/admin/view-listing.php?id=' . $listingId);
   }
+  if ($action === 'delete_listing') {
+    $err = listing_admin_delete($listingId);
+    if ($err !== null) {
+      flash_set('err', $err);
+    } else {
+      flash_set('ok', 'Listing #' . $listingId . ' deleted.');
+    }
+    redirect($err !== null ? '/admin/view-listing.php?id=' . $listingId : '/admin/listings.php?done=delete&id=' . $listingId);
+  }
   if ($action === 'delete_doc') {
     $docId = (int)($_POST['doc_id'] ?? 0);
     if ($docId > 0) {
@@ -109,9 +118,17 @@ ob_start();
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/listings.php">Queue</a>
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/listing-documents.php?id=<?= $listingId ?>">Upload as admin</a>
         <a class="btn" href="<?= APP_BASE_URL ?>/preview-listing.php?id=<?= $listingId ?>">Preview</a>
+        <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/edit-listing.php?id=<?= $listingId ?>">Edit</a>
+        <form method="post" style="margin:0;display:inline" class="admin-action-form" onsubmit="return confirm('Permanently delete this listing?');">
+          <input type="hidden" name="action" value="delete_listing">
+          <input type="hidden" name="id" value="<?= $listingId ?>">
+          <button class="btn secondary btn-action btn-delete" type="submit" data-action="delete">Delete</button>
+        </form>
       </div>
     </div>
   </div>
+
+  <?php require __DIR__ . '/../_partials/listing-video.php'; ?>
 
   <div class="grid" style="align-items:start">
     <div class="col-7">

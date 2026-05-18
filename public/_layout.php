@@ -139,7 +139,17 @@ $u = current_user();
     </div>
   </footer>
 
+  <div id="toast-host" class="toast-host" aria-live="polite" aria-atomic="true"></div>
+
   <?php $__jsVer = @filemtime(__DIR__ . '/assets/app.js') ?: time(); ?>
   <script src="<?= APP_BASE_URL ?>/assets/app.js?v=<?= (int)$__jsVer ?>" defer></script>
+  <?php if (!empty($ok) || !empty($err)): ?>
+  <script>
+  window.__pageFlash = <?= json_encode([
+    'ok' => $ok ?: null,
+    'err' => $err ?: null,
+  ], JSON_THROW_ON_ERROR) ?>;
+  </script>
+  <?php endif; ?>
 </body>
 </html>

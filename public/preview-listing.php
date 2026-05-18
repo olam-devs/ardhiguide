@@ -90,6 +90,8 @@ ob_start();
     </div>
   </div>
 
+  <?php require __DIR__ . '/_partials/listing-video.php'; ?>
+
   <div class="grid" style="margin-top:1rem;align-items:start">
     <div class="col-7">
       <div class="card pad reveal">

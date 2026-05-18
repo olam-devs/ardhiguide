@@ -886,3 +886,64 @@ footer{
 .tbl .small-form{ display: flex; gap: .4rem; align-items: center; margin: 0; flex-wrap: wrap; }
 .tbl .small-form input, .tbl .small-form select{ padding: .5rem .65rem; font-size: .88rem; }
 .tbl .small-form .btn{ padding: .5rem .8rem; font-size: .85rem; }
+
+/* ---------- Toast notifications ---------- */
+.toast-host{
+  position: fixed; top: 1rem; right: 1rem; z-index: 9999;
+  display: flex; flex-direction: column; gap: .55rem; max-width: min(420px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+.toast{
+  pointer-events: auto;
+  padding: .85rem 1rem;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-size: .92rem; font-weight: 600; line-height: 1.45;
+  animation: toast-in .35s ease;
+  border: 1px solid transparent;
+}
+.toast.ok{ background: var(--brand-50); border-color: rgba(14,92,74,.25); color: var(--brand-900); }
+.toast.err{ background: #fef3f2; border-color: rgba(180,35,24,.2); color: #6b1812; }
+.toast.info{ background: var(--surface); border-color: var(--line); color: var(--ink-2); }
+@keyframes toast-in{
+  from{ opacity: 0; transform: translateX(12px); }
+  to{ opacity: 1; transform: translateX(0); }
+}
+
+/* ---------- Admin listing queue actions ---------- */
+.admin-listing-row.is-highlighted{
+  background: rgba(14,92,74,.06);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+.admin-listing-row.is-highlight-fail{
+  background: rgba(180,35,24,.05);
+  box-shadow: inset 3px 0 0 #b42318;
+}
+.admin-actions-wrap{
+  display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; max-width: 420px;
+}
+.btn-action.is-pressed,
+.btn-action:active:not(:disabled){
+  transform: scale(.97);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.12);
+}
+.btn-action.is-loading{
+  opacity: .75; pointer-events: none; position: relative;
+}
+.btn-action.is-active-state{
+  box-shadow: inset 0 0 0 2px rgba(14,92,74,.45);
+  background: var(--brand-50) !important;
+}
+.btn-approve.is-active-state{
+  background: linear-gradient(135deg, var(--brand), var(--brand-700)) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 20px rgba(14,92,74,.25);
+}
+.btn-reject.is-active-state{ box-shadow: inset 0 0 0 2px rgba(180,35,24,.4); }
+.btn-review.is-active-state{ box-shadow: inset 0 0 0 2px rgba(200,150,12,.5); }
+.btn-delete:hover{ border-color: rgba(180,35,24,.35); color: #b42318; }
+.btn-public.is-disabled{
+  opacity: .45; cursor: not-allowed; pointer-events: none;
+}
+.btn-has-video{ border-color: rgba(14,92,74,.35); }
+.admin-listings-table .btn-action{ padding: .5rem .75rem; font-size: .82rem; }
