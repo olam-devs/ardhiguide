@@ -61,15 +61,23 @@ $payerSt->execute([(int)$u['id']]);
 $payerUser = $payerSt->fetch() ?: $u;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && snippe_enabled()) {
-  $action = (string)($_POST['action'] ?? '');
+  $action = trim((string)($_POST['action'] ?? ''));
   $postKind = listing_pay_kind_normalize((string)($_POST['pay_kind'] ?? $kind)) ?? $kind;
+
+  if ($action === '' && ($_POST['pay_phone'] ?? null) !== null) {
+    flash_set('err', 'Could not start payment. Please try again.');
+    redirect('/pay-listing.php?id=' . $id . $forQs);
+  }
 
   if (in_array($action, ['snippe_mobile', 'snippe_card'], true)) {
     $postBlock = snippe_prepare_new_payment($id, $postKind);
     if ($postBlock !== null) {
       flash_set('err', $postBlock);
-      redirect('/pay-listing.php?id=' . $id . $forQs . (snippe_listing_snippe_status($listing, $postKind) === 'pending' ? '&pending=1' : ''));
+      $fresh = snippe_reload_listing($id);
+      $stillPending = $fresh && snippe_listing_snippe_status($fresh, $postKind) === 'pending';
+      redirect('/pay-listing.php?id=' . $id . $forQs . ($stillPending ? '&pending=1' : ''));
     }
+    $listing = snippe_reload_listing($id) ?: $listing;
   }
 
   if ($action === 'snippe_mobile') {
@@ -131,7 +139,10 @@ if (snippe_enabled()) {
       $snippeStatus = (string)$ctx['snippe_status'];
     }
   }
-  if (in_array($snippeStatus, ['expired', 'failed'], true)) {
+  $alreadyPaid = ($kind === LISTING_PAY_LAND
+    ? (($listing['land_payment_status'] ?? '') === 'paid')
+    : (($listing['payment_status'] ?? '') === 'paid'));
+  if (in_array($snippeStatus, ['expired', 'failed', 'completed'], true) && !$alreadyPaid) {
     $retryNotice = $snippeStatus === 'expired'
       ? 'Your previous payment attempt expired. You can pay again below.'
       : 'Your previous payment did not complete. You can try again below.';
@@ -213,6 +224,7 @@ ob_start();
         <?php endif; ?>
 
         <form method="post" class="stack" id="snippe-pay-form" data-pay-lock="1">
+          <input type="hidden" name="action" id="snippe-pay-action" value="">
           <input type="hidden" name="pay_kind" value="<?= h($kind) ?>">
           <?php if (!$pushEnabled || $assignedPhone === ''): ?>
             <div>
@@ -262,13 +274,24 @@ ob_start();
   (function () {
     const form = document.getElementById('snippe-pay-form');
     if (!form) return;
+    const actionInput = document.getElementById('snippe-pay-action');
     let locked = false;
-    form.addEventListener('submit', function () {
-      if (locked) return false;
+    form.querySelectorAll('[data-pay-btn]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (actionInput) actionInput.value = btn.value;
+      });
+    });
+    form.addEventListener('submit', function (e) {
+      if (locked) {
+        e.preventDefault();
+        return;
+      }
       locked = true;
-      form.querySelectorAll('[data-pay-btn]').forEach(function (b) { b.disabled = true; });
       const msg = document.getElementById('snippe-pay-lock-msg');
       if (msg) msg.style.display = 'block';
+      setTimeout(function () {
+        form.querySelectorAll('[data-pay-btn]').forEach(function (b) { b.disabled = true; });
+      }, 0);
     });
   })();
   </script>

@@ -69,6 +69,12 @@ function snippe_prepare_new_payment(int $listingId, string $kind): ?string {
   }
 
   $status = snippe_listing_snippe_status($listing, $kind);
+  if ($status === 'completed' && !snippe_listing_is_paid($listing, $kind)) {
+    snippe_reset_payment_attempt($listingId, $kind, null);
+    $listing = snippe_reload_listing($listingId) ?? $listing;
+    $status = snippe_listing_snippe_status($listing, $kind);
+  }
+
   if ($status === 'pending' && snippe_enabled()) {
     snippe_sync_listing_payment($listingId, $kind);
     $listing = snippe_reload_listing($listingId) ?? $listing;
@@ -92,13 +98,13 @@ function snippe_normalize_for_retry(int $listingId, string $kind): void {
   if ($kind === LISTING_PAY_LAND) {
     db()->prepare(
       "UPDATE listings SET land_snippe_status = 'none', land_snippe_reference = NULL
-       WHERE id = ? AND land_payment_status = 'pending' AND land_snippe_status IN ('failed', 'expired')"
+       WHERE id = ? AND land_payment_status = 'pending' AND land_snippe_status IN ('failed', 'expired', 'completed')"
     )->execute([$listingId]);
     return;
   }
   db()->prepare(
     "UPDATE listings SET snippe_status = 'none', snippe_reference = NULL
-     WHERE id = ? AND payment_status = 'pending' AND snippe_status IN ('failed', 'expired')"
+     WHERE id = ? AND payment_status = 'pending' AND snippe_status IN ('failed', 'expired', 'completed')"
   )->execute([$listingId]);
 }
 
@@ -107,11 +113,11 @@ function snippe_claim_payment_slot(int $listingId, string $kind): bool {
   if ($kind === LISTING_PAY_LAND) {
     $sql = "UPDATE listings SET land_snippe_status = 'pending', land_snippe_reference = NULL, land_snippe_last_error = NULL
             WHERE id = ? AND land_payment_status = 'pending'
-            AND land_snippe_status IN ('none', 'failed', 'expired')";
+            AND land_snippe_status IN ('none', 'failed', 'expired', 'completed')";
   } else {
     $sql = "UPDATE listings SET snippe_status = 'pending', snippe_reference = NULL, snippe_last_error = NULL
             WHERE id = ? AND payment_status = 'pending'
-            AND snippe_status IN ('none', 'failed', 'expired')";
+            AND snippe_status IN ('none', 'failed', 'expired', 'completed')";
   }
   $st = db()->prepare($sql);
   $st->execute([$listingId]);
@@ -238,14 +244,17 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
 
   $listing = snippe_reload_listing($listingId) ?? $listing;
   $priorStatus = snippe_listing_snippe_status($listing, $kind);
-  if (in_array($priorStatus, ['failed', 'expired'], true)) {
+  if (in_array($priorStatus, ['failed', 'expired', 'completed'], true)) {
     snippe_normalize_for_retry($listingId, $kind);
+    if ($priorStatus === 'completed') {
+      snippe_reset_payment_attempt($listingId, $kind, null);
+    }
     $listing = snippe_reload_listing($listingId) ?? $listing;
   }
-  $freshKey = in_array($priorStatus, ['failed', 'expired'], true);
+  $freshKey = in_array($priorStatus, ['failed', 'expired', 'completed'], true);
   if (!snippe_claim_payment_slot($listingId, $kind)) {
     $block = snippe_prepare_new_payment($listingId, $kind);
-    return ['ok' => false, 'err' => $block ?? 'A payment is already in progress. Please wait.'];
+    return ['ok' => false, 'err' => $block ?? 'Could not start payment. Refresh the page and try again.'];
   }
 
   $amount = $kind === LISTING_PAY_LAND
@@ -311,14 +320,17 @@ function snippe_create_card_payment(array $listing, array $payerUser, ?string $p
 
   $listing = snippe_reload_listing($listingId) ?? $listing;
   $priorStatus = snippe_listing_snippe_status($listing, $kind);
-  if (in_array($priorStatus, ['failed', 'expired'], true)) {
+  if (in_array($priorStatus, ['failed', 'expired', 'completed'], true)) {
     snippe_normalize_for_retry($listingId, $kind);
+    if ($priorStatus === 'completed') {
+      snippe_reset_payment_attempt($listingId, $kind, null);
+    }
     $listing = snippe_reload_listing($listingId) ?? $listing;
   }
-  $freshKey = in_array($priorStatus, ['failed', 'expired'], true);
+  $freshKey = in_array($priorStatus, ['failed', 'expired', 'completed'], true);
   if (!snippe_claim_payment_slot($listingId, $kind)) {
     $block = snippe_prepare_new_payment($listingId, $kind);
-    return ['ok' => false, 'err' => $block ?? 'A payment is already in progress. Please wait.'];
+    return ['ok' => false, 'err' => $block ?? 'Could not start payment. Refresh the page and try again.'];
   }
 
   $amount = $kind === LISTING_PAY_LAND
