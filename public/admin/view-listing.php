@@ -32,6 +32,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     flash_set('ok', 'Payment waived for this listing.');
     redirect('/admin/view-listing.php?id=' . $listingId);
   }
+  if ($action === 'save_payment_settings') {
+    $amount = (int)preg_replace('/\D+/', '', (string)($_POST['payment_amount_tzs'] ?? '0'));
+    $pushPhoneRaw = isset($_POST['payment_push_phone']) ? (string)$_POST['payment_push_phone'] : null;
+    $unassignPhone = isset($_POST['unassign_phone']);
+    if ($unassignPhone) {
+      $pushPhoneRaw = '';
+    }
+    $pushEnabled = isset($_POST['payment_push_enabled']) && !$unassignPhone;
+    if ($unassignPhone) {
+      $pushEnabled = false;
+    }
+    $err = listing_admin_save_payment_settings($listingId, $amount, $pushPhoneRaw, $pushEnabled);
+    if ($err !== null) {
+      flash_set('err', $err);
+    } else {
+      flash_set('ok', $unassignPhone
+        ? 'Payment settings saved. Push phone unassigned.'
+        : 'Payment settings saved.');
+    }
+    redirect('/admin/view-listing.php?id=' . $listingId);
+  }
   if ($action === 'delete_doc') {
     $docId = (int)($_POST['doc_id'] ?? 0);
     if ($docId > 0) {
@@ -122,11 +143,20 @@ ob_start();
           <?php if (!empty($listing['payment_reference'])): ?>
             <li>Ref: <code><?= h((string)$listing['payment_reference']) ?></code></li>
           <?php endif; ?>
+          <?php if (!empty($listing['payment_push_phone'])): ?>
+            <li>Push phone: <?= h((string)$listing['payment_push_phone']) ?> <?= (int)($listing['payment_push_enabled'] ?? 0) ? '(locked)' : '(optional)' ?></li>
+          <?php endif; ?>
           <?php if (!empty($listing['paid_at'])): ?>
             <li>Paid at: <?= h((string)$listing['paid_at']) ?></li>
           <?php endif; ?>
         </ul>
         <?php $ps = (string)($listing['payment_status'] ?? 'pending'); ?>
+        <?php $ss = (string)($listing['snippe_status'] ?? 'none'); ?>
+        <?php if ($ss !== 'none'): ?>
+          <p class="sub" style="margin-top:.65rem;font-size:.88rem">Snippe: <strong><?= h($ss) ?></strong>
+            <?php if (!empty($listing['snippe_reference'])): ?> · ref <?= h((string)$listing['snippe_reference']) ?><?php endif; ?>
+          </p>
+        <?php endif; ?>
         <?php if ($ps === 'pending'): ?>
           <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap">
             <form method="post" style="margin:0">
@@ -143,6 +173,8 @@ ob_start();
       </div>
     </div>
   </div>
+
+  <?php require __DIR__ . '/_payment-settings-partial.php'; ?>
 
   <div class="card pad reveal" style="margin-top:1rem">
     <div class="kicker">Internal notes (admin only)</div>

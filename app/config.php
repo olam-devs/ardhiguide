@@ -56,3 +56,9 @@ define('MPESA_PAYMENT_HINT', (string)cfg('MPESA_PAYMENT_HINT', 'Lipa namba / Til
 
 // If true, admin cannot approve listings until payment_status is paid or waived
 define('REQUIRE_PAYMENT_FOR_APPROVAL', filter_var((string)cfg('REQUIRE_PAYMENT_FOR_APPROVAL', '0'), FILTER_VALIDATE_BOOLEAN));
+
+// Snippe payment gateway (https://api.snippe.sh)
+define('SNIPPE_ENABLED', filter_var((string)cfg('SNIPPE_ENABLED', '0'), FILTER_VALIDATE_BOOLEAN));
+define('SNIPPE_API_KEY', (string)cfg('SNIPPE_API_KEY', ''));
+define('SNIPPE_API_BASE', rtrim((string)cfg('SNIPPE_API_BASE', 'https://api.snippe.sh'), '/'));
+define('SNIPPE_WEBHOOK_SECRET', (string)cfg('SNIPPE_WEBHOOK_SECRET', ''));

@@ -96,6 +96,29 @@ nano public/.htaccess
 # uncomment the RewriteEngine block, save, exit
 ```
 
+## Snippe online payments (optional)
+
+After `git pull`, run the Snippe migration once:
+
+```bash
+cd ~/ardhi-guide
+mysql -u olamtecc_ardhi_guide -p olamtecc_ardhi_guide < database/migration_008_snippe.sql
+```
+
+In `app/.env` set:
+
+```ini
+SNIPPE_ENABLED="1"
+SNIPPE_API_KEY="snp_your_key_from_dashboard"
+SNIPPE_WEBHOOK_SECRET="whsec_..."
+```
+
+Webhook URL to register in the Snippe dashboard (or it is sent per payment):
+
+`https://ardhiguide.olamtec.co.tz/webhooks/snippe.php`
+
+Admin controls fee amount and USSD push phone per listing under **Admin → listing detail → Payment & Snippe**.
+
 ## Common SSH commands
 
 ```bash

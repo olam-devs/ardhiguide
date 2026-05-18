@@ -50,6 +50,11 @@ CREATE TABLE IF NOT EXISTS listings (
   payment_status ENUM('pending','paid','waived') NOT NULL DEFAULT 'pending',
   payment_amount_tzs INT UNSIGNED NOT NULL DEFAULT 5000,
   payment_reference VARCHAR(40) NULL,
+  payment_push_phone VARCHAR(32) NULL,
+  payment_push_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  snippe_reference VARCHAR(64) NULL,
+  snippe_status ENUM('none','pending','completed','failed','expired') NOT NULL DEFAULT 'none',
+  snippe_last_error VARCHAR(255) NULL,
   paid_at TIMESTAMP NULL,
   admin_notes TEXT NULL,
   published_at TIMESTAMP NULL,
@@ -57,6 +62,7 @@ CREATE TABLE IF NOT EXISTS listings (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uniq_listings_payment_reference (payment_reference),
+  KEY idx_listings_snippe_reference (snippe_reference),
   KEY idx_listings_status (verification_status),
   KEY idx_listings_region (region),
   CONSTRAINT fk_listings_user FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
@@ -133,6 +139,21 @@ CREATE TABLE IF NOT EXISTS payment_steps (
   KEY idx_ps_category (category_id, sort_order),
   CONSTRAINT fk_ps_category FOREIGN KEY (category_id) REFERENCES payment_categories(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------- Snippe webhook deduplication ----------
+CREATE TABLE IF NOT EXISTS snippe_webhook_events (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  event_id VARCHAR(80) NOT NULL,
+  event_type VARCHAR(60) NOT NULL,
+  snippe_reference VARCHAR(64) NULL,
+  listing_id INT UNSIGNED NULL,
+  payload_json MEDIUMTEXT NOT NULL,
+  processed_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_snippe_event_id (event_id),
+  KEY idx_snippe_wh_listing (listing_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- Seed accounts (no-op if they already exist) ----------
 -- admin@ardhiguide.local / 255657925368 -- password: Admin123!

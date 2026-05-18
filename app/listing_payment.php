@@ -36,8 +36,59 @@ function listing_mark_paid(int $listingId): void {
 }
 
 function listing_mark_waived(int $listingId): void {
-  $stmt = db()->prepare("UPDATE listings SET payment_status = 'waived', paid_at = NULL WHERE id = ?");
+  $stmt = db()->prepare("UPDATE listings SET payment_status = 'waived', paid_at = NULL, snippe_status = 'none' WHERE id = ?");
   $stmt->execute([$listingId]);
+}
+
+/**
+ * Admin: set fee amount, optional push phone, and whether Snippe USSD push is enabled.
+ * Pass null for $pushPhone to leave unchanged; empty string to clear assignment.
+ */
+function listing_admin_save_payment_settings(
+  int $listingId,
+  int $amountTzs,
+  ?string $pushPhone,
+  bool $pushEnabled
+): ?string {
+  if ($amountTzs > 0 && $amountTzs < snippe_min_amount_tzs()) {
+    return 'Amount must be at least ' . snippe_min_amount_tzs() . ' TZS, or set to 0 and waive the fee.';
+  }
+
+  $phoneNorm = null;
+  $clearPhone = false;
+  if ($pushPhone !== null) {
+    if (trim($pushPhone) === '') {
+      $clearPhone = true;
+    } else {
+      $phoneNorm = normalize_phone($pushPhone);
+      if ($phoneNorm === '') {
+        return 'Invalid phone number for payment prompt.';
+      }
+    }
+  }
+
+  if ($pushEnabled && $phoneNorm === null && !$clearPhone) {
+    $cur = db()->prepare('SELECT payment_push_phone FROM listings WHERE id = ?');
+    $cur->execute([$listingId]);
+    $row = $cur->fetch();
+    $existing = trim((string)($row['payment_push_phone'] ?? ''));
+    if ($existing === '') {
+      return 'Assign a phone number before enabling the payment prompt, or leave push disabled.';
+    }
+  }
+
+  $sql = 'UPDATE listings SET payment_amount_tzs = ?, payment_push_enabled = ?';
+  $params = [$amountTzs, $pushEnabled ? 1 : 0];
+
+  if ($pushPhone !== null) {
+    $sql .= ', payment_push_phone = ?';
+    $params[] = $clearPhone ? null : $phoneNorm;
+  }
+
+  $sql .= ' WHERE id = ?';
+  $params[] = $listingId;
+  db()->prepare($sql)->execute($params);
+  return null;
 }
 
 function notify_admin_new_listing(int $listingId, string $title): void {
