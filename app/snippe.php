@@ -226,8 +226,49 @@ function snippe_customer_from_user(array $user): array {
   return [
     'firstname' => $first,
     'lastname' => $last,
+    'first_name' => $first,
+    'last_name' => $last,
     'email' => $email,
   ];
+}
+
+/** Display phone for messages (255712345678 → 0712345678). */
+function snippe_format_phone_display(string $phone): string {
+  $p = snippe_format_phone($phone);
+  if (strlen($p) === 12 && str_starts_with($p, '255')) {
+    return '0' . substr($p, 3);
+  }
+  return $p !== '' ? $p : $phone;
+}
+
+/**
+ * Send (or resend) USSD / mobile money prompt after payment intent exists.
+ *
+ * @return array{ok:bool,err?:string,skipped?:bool}
+ */
+function snippe_send_mobile_ussd_push(string $snippeReference, string $phone): array {
+  if ($snippeReference === '') {
+    return ['ok' => false, 'err' => 'Missing payment reference from provider.'];
+  }
+  $phoneNorm = snippe_format_phone($phone);
+  if ($phoneNorm === '' || strlen($phoneNorm) < 12) {
+    return ['ok' => false, 'err' => 'Invalid phone number for the payment prompt.'];
+  }
+
+  $res = snippe_api_request('POST', '/v1/payments/' . rawurlencode($snippeReference) . '/push', [
+    'phone_number' => $phoneNorm,
+  ], null);
+
+  if ($res['ok']) {
+    return $res;
+  }
+
+  $code = (int)($res['http_code'] ?? 0);
+  if ($code === 404 || $code === 405) {
+    return ['ok' => true, 'skipped' => true];
+  }
+
+  return $res;
 }
 
 /**
@@ -295,7 +336,8 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     ],
   ];
 
-  $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId, $kind, $freshKey));
+  // Always use a fresh idempotency key so Snippe sends a new USSD push (cached keys do not re-push).
+  $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId, $kind, true));
   if (!$res['ok']) {
     snippe_release_payment_claim($listingId, $kind);
     listing_snippe_mark_failed($listingId, (string)($res['err'] ?? 'Unknown error'), $kind);
@@ -303,8 +345,20 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
   }
 
   $snippeRef = (string)($res['reference'] ?? '');
+  if ($snippeRef === '') {
+    snippe_release_payment_claim($listingId, $kind);
+    return ['ok' => false, 'err' => 'Payment could not be started (no reference from provider). Try again.'];
+  }
+
+  $pushRes = snippe_send_mobile_ussd_push($snippeRef, $phoneNorm);
+  if (!$pushRes['ok']) {
+    snippe_release_payment_claim($listingId, $kind);
+    listing_snippe_mark_failed($listingId, (string)($pushRes['err'] ?? 'Could not send prompt to phone.'), $kind);
+    return $pushRes;
+  }
+
   listing_snippe_mark_pending($listingId, $snippeRef, $phoneNorm, $kind);
-  return $res;
+  return $res + ['push_phone' => $phoneNorm];
 }
 
 /**

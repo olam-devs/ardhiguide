@@ -94,7 +94,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && snippe_enabled()) {
       flash_set('err', (string)($res['err'] ?? 'Could not start mobile payment.'));
       redirect('/pay-listing.php?id=' . $id . $forQs);
     }
-    flash_set('ok', 'Check your phone now. Approve the payment prompt on your mobile money screen.');
+    $promptPhone = (string)($res['push_phone'] ?? $phone);
+    flash_set(
+      'ok',
+      'USSD prompt sent to ' . snippe_format_phone_display($promptPhone)
+      . '. Unlock that phone and approve the M-Pesa / Airtel / Mixx request. It can take up to 30 seconds.'
+    );
+    redirect('/pay-listing.php?id=' . $id . $forQs . '&pending=1');
+  }
+
+  if ($action === 'snippe_resend_push') {
+    $postKind = listing_pay_kind_normalize((string)($_POST['pay_kind'] ?? $kind)) ?? $kind;
+    $listing = snippe_reload_listing($id) ?: $listing;
+    $phoneInput = trim((string)($_POST['pay_phone'] ?? ''));
+    $phone = listing_pay_push_phone($listing, $phoneInput, $postKind);
+    if ($phone === null) {
+      flash_set('err', 'Enter the phone number that should receive the prompt.');
+      redirect('/pay-listing.php?id=' . $id . $forQs . '&pending=1');
+    }
+    $snippeRef = $postKind === LISTING_PAY_LAND
+      ? (string)($listing['land_snippe_reference'] ?? '')
+      : (string)($listing['snippe_reference'] ?? '');
+    if ($snippeRef === '') {
+      flash_set('err', 'No payment in progress. Start mobile payment again.');
+      redirect('/pay-listing.php?id=' . $id . $forQs);
+    }
+    $pushRes = snippe_send_mobile_ussd_push($snippeRef, $phone);
+    if (!$pushRes['ok']) {
+      flash_set('err', (string)($pushRes['err'] ?? 'Could not resend prompt.'));
+    } else {
+      flash_set('ok', 'Prompt resent to ' . snippe_format_phone_display($phone) . '. Check that phone now.');
+    }
     redirect('/pay-listing.php?id=' . $id . $forQs . '&pending=1');
   }
 
@@ -217,16 +247,33 @@ ob_start();
     <?php if ($showPending && $snippeStatus === 'pending'): ?>
       <div class="card pad" id="snippe-wait" style="margin-top:1rem;border-color:rgba(14,92,74,.35);background:var(--brand-50)">
         <div class="kicker">Waiting for payment</div>
-        <p class="sub" style="margin:.5rem 0 0">Approve the prompt on your phone. This page will update when payment is confirmed.</p>
+        <?php
+          $promptPhoneWait = $assignedPhone !== '' ? $assignedPhone : $defaultPhone;
+          $snippeRefWait = $kind === LISTING_PAY_LAND
+            ? (string)($listing['land_snippe_reference'] ?? '')
+            : (string)($listing['snippe_reference'] ?? '');
+        ?>
+        <p class="sub" style="margin:.5rem 0 0">
+          Approve the mobile money request on <strong><?= h(snippe_format_phone_display($promptPhoneWait)) ?></strong>.
+          Use the phone that has this number active (M-Pesa, Airtel Money, Mixx, or Halotel).
+        </p>
         <p class="sub" id="snippe-wait-status" style="margin-top:.5rem;font-weight:700">Checking status…</p>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem;align-items:flex-start">
           <button type="button" class="btn secondary" id="snippe-check-now">I entered my PIN — check again</button>
+          <?php if ($snippeRefWait !== ''): ?>
+            <form method="post" style="margin:0">
+              <input type="hidden" name="action" value="snippe_resend_push">
+              <input type="hidden" name="pay_kind" value="<?= h($kind) ?>">
+              <input type="hidden" name="pay_phone" value="<?= h($promptPhoneWait) ?>">
+              <button class="btn secondary" type="submit">Resend prompt</button>
+            </form>
+          <?php endif; ?>
           <form method="post" style="margin:0" onsubmit="return confirm('Clear this attempt and start a new payment? Only do this if you did NOT complete payment on your phone.');">
             <input type="hidden" name="pay_kind" value="<?= h($kind) ?>">
             <button class="btn ghost" type="submit" name="action" value="snippe_abandon">Start over</button>
           </form>
         </div>
-        <p class="sub" style="margin:.65rem 0 0;font-size:.85rem">If the prompt disappeared or Snippe shows unpaid, tap <strong>Start over</strong> to pay again.</p>
+        <p class="sub" style="margin:.65rem 0 0;font-size:.85rem">No prompt after 30 seconds? Confirm the number above, then tap <strong>Resend prompt</strong>. Wrong number? Use <strong>Start over</strong>.</p>
       </div>
     <?php endif; ?>
 
