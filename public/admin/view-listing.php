@@ -53,6 +53,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     redirect('/admin/view-listing.php?id=' . $listingId);
   }
+  if ($action === 'save_land_payment_settings') {
+    $amount = (int)preg_replace('/\D+/', '', (string)($_POST['land_payment_amount_tzs'] ?? '0'));
+    $userId = (int)($_POST['land_payment_user_id'] ?? 0);
+    $userId = $userId > 0 ? $userId : null;
+    $pushPhoneRaw = isset($_POST['land_payment_push_phone']) ? (string)$_POST['land_payment_push_phone'] : null;
+    $pushEnabled = isset($_POST['land_payment_push_enabled']);
+    $openPayment = isset($_POST['land_payment_open']);
+    $err = listing_admin_save_land_payment_settings(
+      $listingId,
+      $amount,
+      $userId,
+      $pushPhoneRaw,
+      $pushEnabled,
+      $openPayment
+    );
+    if ($err !== null) {
+      flash_set('err', $err);
+    } else {
+      flash_set('ok', 'Buyer payment settings saved.');
+    }
+    redirect('/admin/view-listing.php?id=' . $listingId);
+  }
+  if ($action === 'mark_land_paid') {
+    listing_land_mark_paid($listingId);
+    flash_set('ok', 'Buyer plot payment marked as received.');
+    redirect('/admin/view-listing.php?id=' . $listingId);
+  }
+  if ($action === 'mark_land_waived') {
+    listing_land_mark_waived($listingId);
+    flash_set('ok', 'Buyer payment cleared.');
+    redirect('/admin/view-listing.php?id=' . $listingId);
+  }
   if ($action === 'delete_listing') {
     $err = listing_admin_delete($listingId);
     if ($err !== null) {
@@ -156,7 +188,8 @@ ob_start();
           <li>Price: <?= h(format_tzs((string)($listing['price_tzs'] ?? ''))) ?></li>
           <li>Badge: <?= h((string)$listing['verification_badge']) ?></li>
           <li>Package: <?= h((string)($listing['listing_package'] ?? 'basic')) ?></li>
-          <li>Payment: <?= h((string)($listing['payment_status'] ?? 'pending')) ?> · <?= h(format_tzs((string)($listing['payment_amount_tzs'] ?? '0'))) ?></li>
+          <li>Seller fee: <?= h((string)($listing['payment_status'] ?? 'pending')) ?> · <?= h(format_tzs((string)($listing['payment_amount_tzs'] ?? '0'))) ?></li>
+          <li>Buyer plot pay: <?= h((string)($listing['land_payment_status'] ?? 'none')) ?> · <?= h(format_tzs((string)($listing['land_payment_amount_tzs'] ?? '0'))) ?></li>
           <?php if (!empty($listing['payment_reference'])): ?>
             <li>Ref: <code><?= h((string)$listing['payment_reference']) ?></code></li>
           <?php endif; ?>
@@ -192,6 +225,9 @@ ob_start();
   </div>
 
   <?php require __DIR__ . '/_payment-settings-partial.php'; ?>
+  <?php if ((string)($listing['verification_status'] ?? '') === 'approved'): ?>
+    <?php require __DIR__ . '/_land-payment-settings-partial.php'; ?>
+  <?php endif; ?>
 
   <div class="card pad reveal" style="margin-top:1rem">
     <div class="kicker">Internal notes (admin only)</div>

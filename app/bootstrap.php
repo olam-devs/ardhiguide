@@ -8,6 +8,7 @@ require_once __DIR__ . '/session.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/util.php';
 require_once __DIR__ . '/listing_payment.php';
+require_once __DIR__ . '/listing_pay.php';
 require_once __DIR__ . '/listing_video.php';
 require_once __DIR__ . '/snippe.php';
 require_once __DIR__ . '/listing_admin.php';

@@ -3,8 +3,8 @@
 /** @var int $listingId */
 ?>
   <div class="card pad reveal" style="margin-top:1rem">
-    <div class="kicker">Payment &amp; Snippe</div>
-    <p class="sub" style="margin:.35rem 0 1rem">Set the listing fee. Assign a phone for the USSD payment prompt, or leave blank so the seller enters their own number on the pay page.</p>
+    <div class="kicker">Seller publication fee</div>
+    <p class="sub" style="margin:.35rem 0 1rem">Fee for the seller to publish this listing. Assign a phone for the USSD prompt, or leave blank so the seller enters their own number.</p>
     <form method="post" class="stack">
       <input type="hidden" name="action" value="save_payment_settings">
       <div class="row">

@@ -4,12 +4,23 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/bootstrap.php';
 
-$u = require_auth();
 $id = (int)($_GET['id'] ?? 0);
+$for = isset($_GET['for']) ? (string)$_GET['for'] : null;
 if ($id <= 0) {
   flash_set('err', 'Invalid listing.');
-  redirect('/my-listings.php');
+  redirect('/index.php');
 }
+
+$payPath = '/pay-listing.php?id=' . $id . ($for !== null && $for !== '' ? '&for=' . rawurlencode($for) : '');
+
+session_start_safe();
+if (!current_user()) {
+  $_SESSION['login_redirect'] = $payPath;
+  flash_set('ok', 'Please log in to complete payment.');
+  redirect('/login.php');
+}
+
+$u = require_auth();
 
 $st = db()->prepare(
   'SELECT l.*, u.full_name AS owner_name, u.email AS owner_email, u.phone AS owner_phone
@@ -21,29 +32,29 @@ $st->execute([$id]);
 $listing = $st->fetch();
 if (!$listing) {
   flash_set('err', 'Listing not found.');
-  redirect('/my-listings.php');
+  redirect('/index.php');
 }
 
-$ownerId = (int)($listing['created_by_user_id'] ?? 0);
-$isAdmin = (($u['role'] ?? '') === 'admin');
-$isOwner = ($ownerId === (int)$u['id']);
-if (!$isAdmin && !$isOwner) {
-  http_response_code(403);
-  echo 'Forbidden';
-  exit;
+$ctx = listing_pay_resolve($listing, $u, $for);
+if ($ctx === null) {
+  $tryKind = listing_pay_kind_normalize($for) ?? LISTING_PAY_LAND;
+  $err = listing_pay_access_error($listing, $u, $tryKind)
+    ?? 'Payment is not available for this listing.';
+  flash_set('err', $err);
+  $ownerId = (int)($listing['created_by_user_id'] ?? 0);
+  if ($ownerId === (int)$u['id']) {
+    redirect('/my-listings.php');
+  }
+  redirect('/listing.php?id=' . $id);
 }
 
-$payStatus = (string)($listing['payment_status'] ?? 'pending');
-$amount = (int)($listing['payment_amount_tzs'] ?? 0);
-$ref = (string)($listing['payment_reference'] ?? '');
-$pushEnabled = (int)($listing['payment_push_enabled'] ?? 0) === 1;
-$assignedPhone = trim((string)($listing['payment_push_phone'] ?? ''));
-$snippeStatus = (string)($listing['snippe_status'] ?? 'none');
-
-if ($payStatus === 'paid' || $payStatus === 'waived' || $amount <= 0) {
-  flash_set('ok', $payStatus === 'paid' ? 'This listing fee is recorded as paid.' : 'No payment required for this listing.');
-  redirect($isAdmin ? '/admin/view-listing.php?id=' . $id : '/my-listings.php');
-}
+$kind = (string)$ctx['kind'];
+$amount = (int)$ctx['amount'];
+$ref = (string)$ctx['reference'];
+$pushEnabled = (bool)$ctx['push_enabled'];
+$assignedPhone = (string)$ctx['push_phone'];
+$snippeStatus = (string)$ctx['snippe_status'];
+$forQs = $kind === LISTING_PAY_LAND ? '&for=land' : '';
 
 $payerSt = db()->prepare('SELECT id, email, full_name, phone FROM users WHERE id = ? LIMIT 1');
 $payerSt->execute([(int)$u['id']]);
@@ -51,37 +62,38 @@ $payerUser = $payerSt->fetch() ?: $u;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && snippe_enabled()) {
   $action = (string)($_POST['action'] ?? '');
+  $postKind = listing_pay_kind_normalize((string)($_POST['pay_kind'] ?? $kind)) ?? $kind;
 
   if ($action === 'snippe_mobile') {
     $phoneInput = trim((string)($_POST['pay_phone'] ?? ''));
-    $phone = listing_payment_push_phone($listing, $phoneInput);
+    $phone = listing_pay_push_phone($listing, $phoneInput, $postKind);
     if ($phone === null) {
       flash_set('err', $pushEnabled
         ? 'Admin has not assigned a payment phone yet. Contact support.'
         : 'Enter the phone number that will receive the payment prompt.');
-      redirect('/pay-listing.php?id=' . $id);
+      redirect('/pay-listing.php?id=' . $id . $forQs);
     }
-    $res = snippe_create_mobile_payment($listing, $payerUser, $phone);
+    $res = snippe_create_mobile_payment($listing, $payerUser, $phone, $postKind);
     if (!$res['ok']) {
       flash_set('err', (string)($res['err'] ?? 'Could not start mobile payment.'));
-      redirect('/pay-listing.php?id=' . $id);
+      redirect('/pay-listing.php?id=' . $id . $forQs);
     }
     flash_set('ok', 'Check your phone now. Approve the payment prompt on your mobile money screen.');
-    redirect('/pay-listing.php?id=' . $id . '&pending=1');
+    redirect('/pay-listing.php?id=' . $id . $forQs . '&pending=1');
   }
 
   if ($action === 'snippe_card') {
     $phoneInput = trim((string)($_POST['pay_phone'] ?? ''));
-    $phone = $phoneInput !== '' ? listing_payment_push_phone($listing, $phoneInput) : null;
-    $res = snippe_create_card_payment($listing, $payerUser, $phone);
+    $phone = $phoneInput !== '' ? listing_pay_push_phone($listing, $phoneInput, $postKind) : null;
+    $res = snippe_create_card_payment($listing, $payerUser, $phone, $postKind);
     if (!$res['ok']) {
       flash_set('err', (string)($res['err'] ?? 'Could not start card payment.'));
-      redirect('/pay-listing.php?id=' . $id);
+      redirect('/pay-listing.php?id=' . $id . $forQs);
     }
     $payUrl = (string)($res['payment_url'] ?? '');
     if ($payUrl === '') {
       flash_set('err', 'Card checkout URL was not returned. Try again or use mobile money.');
-      redirect('/pay-listing.php?id=' . $id);
+      redirect('/pay-listing.php?id=' . $id . $forQs);
     }
     header('Location: ' . $payUrl);
     exit;
@@ -91,20 +103,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && snippe_enabled()) {
 $title = (string)$listing['title'];
 $showPending = isset($_GET['pending']) || $snippeStatus === 'pending';
 $defaultPhone = $assignedPhone !== '' ? $assignedPhone : trim((string)($payerUser['phone'] ?? ''));
-$waMsg = "Hello Ardhi Guide\n\nPayment receipt for listing #{$id}\nTitle: {$title}\nAmount: TSh " . number_format($amount, 0, '.', ',') . "\nReference: {$ref}\n\nI have completed the payment. Attached is the confirmation (SMS, screenshot, or bank slip). Please verify and approve. Asante sana.";
+$snippeErr = (string)$ctx['snippe_error'];
 
 ob_start();
 ?>
   <div class="card pad reveal" style="max-width:720px;margin:0 auto">
-    <div class="kicker">Listing fee</div>
-    <h1>Pay to publish your listing</h1>
-    <div class="sub">Amount set by our team. Pay online with mobile money (USSD prompt) or card. See the payment guide below if you need help.</div>
+    <div class="kicker"><?= h((string)$ctx['kicker']) ?></div>
+    <h1><?= h((string)$ctx['title']) ?></h1>
+    <div class="sub"><?= h((string)$ctx['intro']) ?></div>
 
     <div class="card pad" style="margin-top:1rem;background:var(--bg2)">
       <div style="font-weight:900;font-size:1.35rem;color:var(--brand-900)"><?= h(format_tzs((string)$amount)) ?></div>
       <div class="sub" style="margin-top:.5rem">
         <strong><?= h($title) ?></strong><br>
-        Package: <?= h((string)($listing['listing_package'] ?? 'basic')) ?><br>
+        <?php if (!empty($ctx['show_package'])): ?>
+          Package: <?= h((string)($listing['listing_package'] ?? 'basic')) ?><br>
+        <?php endif; ?>
         Payment code: <strong style="letter-spacing:1px"><?= h($ref) ?></strong>
       </div>
     </div>
@@ -117,8 +131,8 @@ ob_start();
       </div>
     <?php endif; ?>
 
-    <?php if (!empty($listing['snippe_last_error']) && $snippeStatus === 'failed'): ?>
-      <div class="flash danger" style="margin-top:1rem"><?= h((string)$listing['snippe_last_error']) ?></div>
+    <?php if ($snippeErr !== '' && $snippeStatus === 'failed'): ?>
+      <div class="flash danger" style="margin-top:1rem"><?= h($snippeErr) ?></div>
     <?php endif; ?>
 
     <?php if (snippe_enabled()): ?>
@@ -133,6 +147,7 @@ ob_start();
         <?php endif; ?>
 
         <form method="post" class="stack" id="snippe-pay-form">
+          <input type="hidden" name="pay_kind" value="<?= h($kind) ?>">
           <?php if (!$pushEnabled || $assignedPhone === ''): ?>
             <div>
               <label>Phone for payment prompt</label>
@@ -151,7 +166,7 @@ ob_start();
       </div>
     <?php else: ?>
       <div class="card pad" style="margin-top:1rem;background:var(--bg2)">
-        <p class="sub" style="margin:0">Online checkout is not enabled yet. Contact us on WhatsApp with your payment code <strong><?= h($ref) ?></strong>.</p>
+        <p class="sub" style="margin:0">Online checkout is not available right now. Please try again later or <a href="<?= h(whatsapp_link('Hello Ardhi Guide, I need help with an online payment.')) ?>" target="_blank" rel="noopener">contact us</a>.</p>
       </div>
     <?php endif; ?>
 
@@ -167,15 +182,11 @@ ob_start();
       </div>
     </div>
 
-    <div class="receipt-cta" style="margin-top:1rem;border-style:dashed">
-      <div class="kicker">Need help?</div>
-      <h3 style="font-size:1.1rem;margin:.35rem 0">Payment problem or special case</h3>
-      <p class="sub" style="margin:0;line-height:1.65">If online checkout failed or you were asked to pay offline, message us on WhatsApp with payment code <strong><?= h($ref) ?></strong> and a screenshot of any confirmation.</p>
-      <a class="btn secondary" style="margin-top:.75rem" href="<?= h(whatsapp_link($waMsg)) ?>" target="_blank" rel="noopener">WhatsApp support</a>
-    </div>
-
-    <div style="margin-top:1.2rem">
-      <a class="btn secondary" href="<?= APP_BASE_URL ?>/my-listings.php">Back to my listings</a>
+    <div style="margin-top:1.2rem;display:flex;gap:.65rem;flex-wrap:wrap">
+      <a class="btn secondary" href="<?= h((string)$ctx['back_url']) ?>">Back</a>
+      <?php if ($kind === LISTING_PAY_LAND): ?>
+        <a class="btn ghost" href="<?= APP_BASE_URL ?>/enquiry.php?listing_id=<?= $id ?>">Ask a question</a>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -184,17 +195,19 @@ ob_start();
   (function () {
     const statusEl = document.getElementById('snippe-wait-status');
     const listingId = <?= (int)$id ?>;
+    const forQs = <?= json_encode($forQs, JSON_THROW_ON_ERROR) ?>;
+    const doneUrl = <?= json_encode((string)$ctx['done_url'], JSON_THROW_ON_ERROR) ?>;
     let stopped = false;
     function poll() {
       if (stopped) return;
-      fetch('<?= APP_BASE_URL ?>/payment-status.php?id=' + listingId, { credentials: 'same-origin' })
+      fetch('<?= APP_BASE_URL ?>/payment-status.php?id=' + listingId + forQs, { credentials: 'same-origin' })
         .then(r => r.json())
         .then(data => {
           if (!statusEl || !data) return;
           if (data.paid) {
             statusEl.textContent = 'Payment confirmed! Redirecting…';
             stopped = true;
-            window.location.href = '<?= APP_BASE_URL ?>/my-listings.php';
+            window.location.href = doneUrl;
             return;
           }
           if (data.snippe_status === 'failed') {
@@ -218,5 +231,5 @@ ob_start();
   <?php endif; ?>
 <?php
 $content = ob_get_clean();
-$title = 'Pay listing fee. Ardhi Guide';
+$title = ($kind === LISTING_PAY_LAND ? 'Pay for plot' : 'Pay listing fee') . '. Ardhi Guide';
 require __DIR__ . '/_layout.php';

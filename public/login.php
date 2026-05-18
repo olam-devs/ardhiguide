@@ -5,6 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/bootstrap.php';
 
 session_start_safe();
+$next = trim((string)($_GET['next'] ?? ''));
+if ($next !== '' && str_starts_with($next, '/') && !str_contains($next, '//')) {
+  $_SESSION['login_redirect'] = $next;
+}
 if (current_user()) {
   redirect_after_login();
 }

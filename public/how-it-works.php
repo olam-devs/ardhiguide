@@ -22,7 +22,7 @@ ob_start();
       <ul>
         <li>Register as a <strong>buyer</strong> (optional but saves your enquiries under <strong>My enquiries</strong>).</li>
         <li>Use <strong>Browse</strong> and filters (region, category, keywords) to find approved land.</li>
-        <li>Open a listing, read details and badges, then use <strong>Enquire</strong>. Your details are stored as a lead; you are sent to WhatsApp to continue.</li>
+        <li>Open a listing, read details and badges. If admin enabled payment, log in and tap <strong>Pay online</strong> for the amount shown. Use <strong>Ask a question</strong> for enquiries (WhatsApp is optional, not for payment).</li>
         <li>Badges (e.g. docs submitted, reviewed) are <strong>internal review levels</strong>, not a government guarantee of ownership. Always do your own due diligence.</li>
       </ul>
     </div>
@@ -51,7 +51,7 @@ ob_start();
       <li>Register and log in as seller or agent.</li>
       <li>Complete <strong>Submit listing</strong> with accurate location and price; add clear photos.</li>
         <li>Upload optional <strong>verification documents</strong> such as title-related files or sketches, whatever your process allows.</li>
-      <li>Complete the <strong>listing fee</strong> on the pay page; send proof via WhatsApp if required.</li>
+      <li>Complete the <strong>listing fee</strong> on the pay page (mobile money or card).</li>
       <li>Wait for admin review. When approved, your listing appears on <strong>Browse</strong> and buyers can enquire.</li>
       <li>Monitor <strong>My listings</strong> for lead counts and follow up on WhatsApp.</li>
     </ol>

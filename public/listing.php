@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/bootstrap.php';
 
+session_start_safe();
+$viewer = current_user();
+
 $id = (int)($_GET['id'] ?? 0);
 if ($id <= 0) {
   http_response_code(404);
@@ -46,7 +49,15 @@ ob_start();
           <div class="price" style="color:#fff;font-size:1.7rem"><?= h(format_tzs((string)($l['price_tzs'] ?? ''))) ?></div>
           <div style="margin-top:.65rem;display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap">
             <a class="btn secondary" href="<?= APP_BASE_URL ?>/index.php">Back</a>
-            <a class="btn" href="<?= APP_BASE_URL ?>/enquiry.php?listing_id=<?= (int)$l['id'] ?>">Enquire</a>
+            <?php if (listing_land_payment_open($l)): ?>
+              <?php $payUrl = '/pay-listing.php?id=' . (int)$l['id'] . '&for=land'; ?>
+              <?php if ($viewer): ?>
+                <a class="btn" href="<?= APP_BASE_URL . $payUrl ?>">Pay <?= h(format_tzs((string)($l['land_payment_amount_tzs'] ?? '0'))) ?></a>
+              <?php else: ?>
+                <a class="btn" href="<?= APP_BASE_URL ?>/login.php?next=<?= rawurlencode($payUrl) ?>">Log in to pay</a>
+              <?php endif; ?>
+            <?php endif; ?>
+            <a class="btn secondary" href="<?= APP_BASE_URL ?>/enquiry.php?listing_id=<?= (int)$l['id'] ?>">Enquire</a>
           </div>
           <div style="margin-top:.8rem;display:flex;gap:.5rem;justify-content:flex-end;flex-wrap:wrap">
             <span class="pill ok">Approved</span>
@@ -103,8 +114,14 @@ ob_start();
             <?php endforeach; ?>
           </div>
         <?php endif; ?>
-        <div style="margin-top:1rem">
-          <a class="btn" style="width:100%" href="<?= APP_BASE_URL ?>/enquiry.php?listing_id=<?= (int)$l['id'] ?>">Enquire</a>
+        <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.5rem">
+          <?php if (listing_land_payment_open($l)): ?>
+            <?php $payUrl = '/pay-listing.php?id=' . (int)$l['id'] . '&for=land'; ?>
+            <a class="btn" style="width:100%" href="<?= APP_BASE_URL ?><?= $viewer ? $payUrl : '/login.php?next=' . rawurlencode($payUrl) ?>">
+              <?= $viewer ? 'Pay online' : 'Log in to pay' ?> · <?= h(format_tzs((string)($l['land_payment_amount_tzs'] ?? '0'))) ?>
+            </a>
+          <?php endif; ?>
+          <a class="btn secondary" style="width:100%" href="<?= APP_BASE_URL ?>/enquiry.php?listing_id=<?= (int)$l['id'] ?>">Ask a question</a>
         </div>
       </div>
     </div>

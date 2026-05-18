@@ -73,6 +73,13 @@ function redirect_after_login(): void {
     redirect('/login.php');
     return;
   }
+  session_start_safe();
+  $next = trim((string)($_SESSION['login_redirect'] ?? ''));
+  unset($_SESSION['login_redirect']);
+  if ($next !== '' && str_starts_with($next, '/') && !str_contains($next, '//')) {
+    redirect($next);
+    return;
+  }
   $role = (string)($u['role'] ?? 'buyer');
   if ($role === 'admin') {
     redirect('/admin/listings.php');

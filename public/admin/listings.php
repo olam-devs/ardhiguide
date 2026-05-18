@@ -94,13 +94,18 @@ $highlightId = (int)($_GET['id'] ?? 0);
 $highlightAction = (string)($_GET['done'] ?? '');
 $highlightFail = isset($_GET['fail']);
 
-$stmt = db()->query("SELECT l.id,l.title,l.region,l.category,l.verification_status,l.verification_badge,l.is_featured,
-                            l.listing_package,l.payment_status,l.payment_amount_tzs,l.video_path,l.created_at,
-                            u.email AS owner_email,u.phone AS owner_phone,u.full_name AS owner_name
-                     FROM listings l
-                     LEFT JOIN users u ON u.id = l.created_by_user_id
-                     ORDER BY FIELD(l.verification_status,'submitted','under_review','approved','rejected'), l.id DESC
-                     LIMIT 200");
+$filter = (string)($_GET['filter'] ?? '');
+$sql = "SELECT l.id,l.title,l.region,l.category,l.verification_status,l.verification_badge,l.is_featured,
+               l.listing_package,l.payment_status,l.payment_amount_tzs,l.land_payment_status,l.land_payment_amount_tzs,
+               l.video_path,l.created_at,
+               u.email AS owner_email,u.phone AS owner_phone,u.full_name AS owner_name
+        FROM listings l
+        LEFT JOIN users u ON u.id = l.created_by_user_id";
+if ($filter === 'land_paid') {
+  $sql .= " WHERE l.land_payment_status = 'paid'";
+}
+$sql .= " ORDER BY FIELD(l.verification_status,'submitted','under_review','approved','rejected'), l.id DESC LIMIT 200";
+$stmt = db()->query($sql);
 $rows = $stmt->fetchAll();
 
 ob_start();
@@ -109,11 +114,16 @@ ob_start();
     <div class="grid" style="align-items:end">
       <div class="col-7">
         <div class="kicker">Admin</div>
-        <h1 style="margin-bottom:.35rem">Listings review queue</h1>
-        <div class="sub">Approve listings to publish them. Preview video on the detail or preview page before approving.</div>
+        <h1 style="margin-bottom:.35rem"><?= $filter === 'land_paid' ? 'Plots with buyer payment received' : 'Listings review queue' ?></h1>
+        <div class="sub"><?= $filter === 'land_paid' ? 'Listings where a buyer completed online plot payment.' : 'Approve listings to publish them. Preview video on the detail or preview page before approving.' ?></div>
       </div>
       <div class="col-5" style="display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap">
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/users.php">Users</a>
+        <?php if ($filter === 'land_paid'): ?>
+          <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/listings.php">All listings</a>
+        <?php else: ?>
+          <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/listings.php?filter=land_paid">Paid plots</a>
+        <?php endif; ?>
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/payment-instructions.php">Payment instructions</a>
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/enquiries.php">Enquiries</a>
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/submit-listing.php">Submit listing</a>

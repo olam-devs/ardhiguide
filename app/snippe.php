@@ -16,8 +16,21 @@ function snippe_webhook_url(): string {
 }
 
 /** Idempotency-Key must be <= 30 characters (Snippe PAY_001). */
-function snippe_idempotency_key(int $listingId): string {
-  return 'ag' . $listingId . substr(bin2hex(random_bytes(4)), 0, 8);
+function snippe_idempotency_key(int $listingId, string $kind = LISTING_PAY_LISTING_FEE): string {
+  $prefix = $kind === LISTING_PAY_LAND ? 'agL' : 'agF';
+  return $prefix . $listingId . substr(bin2hex(random_bytes(3)), 0, 6);
+}
+
+function snippe_payment_kind_from_payload(array $payload): string {
+  $data = $payload['data'] ?? $payload;
+  if (!is_array($data)) {
+    return LISTING_PAY_LISTING_FEE;
+  }
+  $meta = $data['metadata'] ?? [];
+  if (is_array($meta) && ($meta['payment_kind'] ?? '') === LISTING_PAY_LAND) {
+    return LISTING_PAY_LAND;
+  }
+  return LISTING_PAY_LISTING_FEE;
 }
 
 /**
@@ -101,9 +114,11 @@ function snippe_customer_from_user(array $user): array {
  * @param array<string,mixed> $listing
  * @param array<string,mixed> $payerUser logged-in user paying
  */
-function snippe_create_mobile_payment(array $listing, array $payerUser, string $phone): array {
+function snippe_create_mobile_payment(array $listing, array $payerUser, string $phone, string $kind = LISTING_PAY_LISTING_FEE): array {
   $listingId = (int)$listing['id'];
-  $amount = (int)($listing['payment_amount_tzs'] ?? 0);
+  $amount = $kind === LISTING_PAY_LAND
+    ? (int)($listing['land_payment_amount_tzs'] ?? 0)
+    : (int)($listing['payment_amount_tzs'] ?? 0);
   if ($amount < snippe_min_amount_tzs()) {
     return ['ok' => false, 'err' => 'Amount must be at least ' . snippe_min_amount_tzs() . ' TZS.'];
   }
@@ -113,7 +128,9 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     return ['ok' => false, 'err' => 'Enter a valid phone number for the payment prompt.'];
   }
 
-  $ref = (string)($listing['payment_reference'] ?? '');
+  $ref = $kind === LISTING_PAY_LAND
+    ? (string)($listing['land_payment_reference'] ?? '')
+    : (string)($listing['payment_reference'] ?? '');
   $body = [
     'payment_type' => 'mobile',
     'details' => [
@@ -126,17 +143,18 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     'metadata' => [
       'listing_id' => (string)$listingId,
       'payment_reference' => $ref,
+      'payment_kind' => $kind,
     ],
   ];
 
-  $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId));
+  $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId, $kind));
   if (!$res['ok']) {
-    listing_snippe_mark_failed($listingId, (string)($res['err'] ?? 'Unknown error'));
+    listing_snippe_mark_failed($listingId, (string)($res['err'] ?? 'Unknown error'), $kind);
     return $res;
   }
 
   $snippeRef = (string)($res['reference'] ?? '');
-  listing_snippe_mark_pending($listingId, $snippeRef, $phoneNorm);
+  listing_snippe_mark_pending($listingId, $snippeRef, $phoneNorm, $kind);
   return $res;
 }
 
@@ -144,22 +162,27 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
  * @param array<string,mixed> $listing
  * @param array<string,mixed> $payerUser
  */
-function snippe_create_card_payment(array $listing, array $payerUser, ?string $phone = null): array {
+function snippe_create_card_payment(array $listing, array $payerUser, ?string $phone = null, string $kind = LISTING_PAY_LISTING_FEE): array {
   $listingId = (int)$listing['id'];
-  $amount = (int)($listing['payment_amount_tzs'] ?? 0);
+  $amount = $kind === LISTING_PAY_LAND
+    ? (int)($listing['land_payment_amount_tzs'] ?? 0)
+    : (int)($listing['payment_amount_tzs'] ?? 0);
   if ($amount < snippe_min_amount_tzs()) {
     return ['ok' => false, 'err' => 'Amount must be at least ' . snippe_min_amount_tzs() . ' TZS.'];
   }
 
   $base = APP_BASE_URL;
-  $ref = (string)($listing['payment_reference'] ?? '');
+  $forQs = $kind === LISTING_PAY_LAND ? '&for=land' : '';
+  $ref = $kind === LISTING_PAY_LAND
+    ? (string)($listing['land_payment_reference'] ?? '')
+    : (string)($listing['payment_reference'] ?? '');
   $body = [
     'payment_type' => 'card',
     'details' => [
       'amount' => $amount,
       'currency' => 'TZS',
-      'redirect_url' => $base . '/payment-return.php?listing_id=' . $listingId . '&status=success',
-      'cancel_url' => $base . '/payment-return.php?listing_id=' . $listingId . '&status=cancel',
+      'redirect_url' => $base . '/payment-return.php?listing_id=' . $listingId . '&status=success' . $forQs,
+      'cancel_url' => $base . '/payment-return.php?listing_id=' . $listingId . '&status=cancel' . $forQs,
     ],
     'customer' => snippe_customer_from_user($payerUser) + [
       'address' => 'Dar es Salaam',
@@ -172,6 +195,7 @@ function snippe_create_card_payment(array $listing, array $payerUser, ?string $p
     'metadata' => [
       'listing_id' => (string)$listingId,
       'payment_reference' => $ref,
+      'payment_kind' => $kind,
     ],
   ];
 
@@ -182,18 +206,28 @@ function snippe_create_card_payment(array $listing, array $payerUser, ?string $p
     }
   }
 
-  $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId));
+  $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId, $kind));
   if (!$res['ok']) {
-    listing_snippe_mark_failed($listingId, (string)($res['err'] ?? 'Unknown error'));
+    listing_snippe_mark_failed($listingId, (string)($res['err'] ?? 'Unknown error'), $kind);
     return $res;
   }
 
   $snippeRef = (string)($res['reference'] ?? '');
-  listing_snippe_mark_pending($listingId, $snippeRef, null);
+  listing_snippe_mark_pending($listingId, $snippeRef, null, $kind);
   return $res;
 }
 
-function listing_snippe_mark_pending(int $listingId, string $snippeReference, ?string $pushPhoneUsed): void {
+function listing_snippe_mark_pending(int $listingId, string $snippeReference, ?string $pushPhoneUsed, string $kind = LISTING_PAY_LISTING_FEE): void {
+  if ($kind === LISTING_PAY_LAND) {
+    db()->prepare(
+      'UPDATE listings SET land_snippe_reference = ?, land_snippe_status = ?, land_snippe_last_error = NULL WHERE id = ?'
+    )->execute([$snippeReference, 'pending', $listingId]);
+    if ($pushPhoneUsed !== null) {
+      db()->prepare('UPDATE listings SET land_payment_push_phone = ? WHERE id = ?')
+        ->execute([$pushPhoneUsed, $listingId]);
+    }
+    return;
+  }
   $sql = 'UPDATE listings SET snippe_reference = ?, snippe_status = ?, snippe_last_error = NULL';
   $params = [$snippeReference, 'pending'];
   if ($pushPhoneUsed !== null) {
@@ -205,19 +239,32 @@ function listing_snippe_mark_pending(int $listingId, string $snippeReference, ?s
   db()->prepare($sql)->execute($params);
 }
 
-function listing_snippe_mark_failed(int $listingId, string $error): void {
+function listing_snippe_mark_failed(int $listingId, string $error, string $kind = LISTING_PAY_LISTING_FEE): void {
   $err = strlen($error) > 250 ? substr($error, 0, 250) : $error;
+  if ($kind === LISTING_PAY_LAND) {
+    db()->prepare('UPDATE listings SET land_snippe_status = ?, land_snippe_last_error = ? WHERE id = ?')
+      ->execute(['failed', $err, $listingId]);
+    return;
+  }
   db()->prepare('UPDATE listings SET snippe_status = ?, snippe_last_error = ? WHERE id = ?')
     ->execute(['failed', $err, $listingId]);
 }
 
-function listing_snippe_mark_completed(int $listingId): void {
+function listing_snippe_mark_completed(int $listingId, string $kind = LISTING_PAY_LISTING_FEE): void {
+  if ($kind === LISTING_PAY_LAND) {
+    listing_land_mark_paid($listingId);
+    return;
+  }
   db()->prepare("UPDATE listings SET snippe_status = 'completed', snippe_last_error = NULL WHERE id = ?")
     ->execute([$listingId]);
   listing_mark_paid($listingId);
 }
 
-function listing_snippe_mark_expired(int $listingId): void {
+function listing_snippe_mark_expired(int $listingId, string $kind = LISTING_PAY_LISTING_FEE): void {
+  if ($kind === LISTING_PAY_LAND) {
+    db()->prepare("UPDATE listings SET land_snippe_status = 'expired' WHERE id = ?")->execute([$listingId]);
+    return;
+  }
   db()->prepare("UPDATE listings SET snippe_status = 'expired' WHERE id = ?")->execute([$listingId]);
 }
 
@@ -307,10 +354,14 @@ function snippe_process_webhook_payload(array $payload, string $rawJson): bool {
      VALUES (?,?,?,?,?)'
   )->execute([$eventId, $eventType, $snippeRef, $listingId > 0 ? $listingId : null, $rawJson]);
 
+  $payKind = snippe_payment_kind_from_payload($payload);
+
   if ($listingId === null || $listingId <= 0) {
     if ($snippeRef !== null) {
-      $st = db()->prepare('SELECT id FROM listings WHERE snippe_reference = ? LIMIT 1');
-      $st->execute([$snippeRef]);
+      $st = db()->prepare(
+        'SELECT id FROM listings WHERE snippe_reference = ? OR land_snippe_reference = ? LIMIT 1'
+      );
+      $st->execute([$snippeRef, $snippeRef]);
       $row = $st->fetch();
       if ($row) {
         $listingId = (int)$row['id'];
@@ -323,11 +374,11 @@ function snippe_process_webhook_payload(array $payload, string $rawJson): bool {
   }
 
   if ($eventType === 'payment.completed') {
-    listing_snippe_mark_completed($listingId);
+    listing_snippe_mark_completed($listingId, $payKind);
   } elseif (in_array($eventType, ['payment.failed', 'payment.voided'], true)) {
-    listing_snippe_mark_failed($listingId, 'Payment ' . str_replace('payment.', '', $eventType));
+    listing_snippe_mark_failed($listingId, 'Payment ' . str_replace('payment.', '', $eventType), $payKind);
   } elseif ($eventType === 'payment.expired') {
-    listing_snippe_mark_expired($listingId);
+    listing_snippe_mark_expired($listingId, $payKind);
   } else {
     return true;
   }
