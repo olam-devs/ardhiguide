@@ -242,36 +242,6 @@ function snippe_format_phone_display(string $phone): string {
 }
 
 /**
- * Send (or resend) USSD / mobile money prompt after payment intent exists.
- *
- * @return array{ok:bool,err?:string,skipped?:bool}
- */
-function snippe_send_mobile_ussd_push(string $snippeReference, string $phone): array {
-  if ($snippeReference === '') {
-    return ['ok' => false, 'err' => 'Missing payment reference from provider.'];
-  }
-  $phoneNorm = snippe_format_phone($phone);
-  if ($phoneNorm === '' || strlen($phoneNorm) < 12) {
-    return ['ok' => false, 'err' => 'Invalid phone number for the payment prompt.'];
-  }
-
-  $res = snippe_api_request('POST', '/v1/payments/' . rawurlencode($snippeReference) . '/push', [
-    'phone_number' => $phoneNorm,
-  ], null);
-
-  if ($res['ok']) {
-    return $res;
-  }
-
-  $code = (int)($res['http_code'] ?? 0);
-  if ($code === 404 || $code === 405) {
-    return ['ok' => true, 'skipped' => true];
-  }
-
-  return $res;
-}
-
-/**
  * @param array<string,mixed> $listing
  * @param array<string,mixed> $payerUser logged-in user paying
  */
@@ -350,13 +320,7 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     return ['ok' => false, 'err' => 'Payment could not be started (no reference from provider). Try again.'];
   }
 
-  $pushRes = snippe_send_mobile_ussd_push($snippeRef, $phoneNorm);
-  if (!$pushRes['ok']) {
-    snippe_release_payment_claim($listingId, $kind);
-    listing_snippe_mark_failed($listingId, (string)($pushRes['err'] ?? 'Could not send prompt to phone.'), $kind);
-    return $pushRes;
-  }
-
+  // USSD is sent by Snippe on POST /v1/payments only; /push is retriggering and returns PAY_001.
   listing_snippe_mark_pending($listingId, $snippeRef, $phoneNorm, $kind);
   return $res + ['push_phone' => $phoneNorm];
 }

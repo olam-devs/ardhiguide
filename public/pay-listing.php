@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && snippe_enabled()) {
     redirect('/pay-listing.php?id=' . $id . $forQs . '&pending=1');
   }
 
-  if ($action === 'snippe_resend_push') {
+  if ($action === 'snippe_new_prompt') {
     $postKind = listing_pay_kind_normalize((string)($_POST['pay_kind'] ?? $kind)) ?? $kind;
     $listing = snippe_reload_listing($id) ?: $listing;
     $phoneInput = trim((string)($_POST['pay_phone'] ?? ''));
@@ -112,19 +112,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && snippe_enabled()) {
       flash_set('err', 'Enter the phone number that should receive the prompt.');
       redirect('/pay-listing.php?id=' . $id . $forQs . '&pending=1');
     }
-    $snippeRef = $postKind === LISTING_PAY_LAND
-      ? (string)($listing['land_snippe_reference'] ?? '')
-      : (string)($listing['snippe_reference'] ?? '');
-    if ($snippeRef === '') {
-      flash_set('err', 'No payment in progress. Start mobile payment again.');
+    snippe_abandon_pending_payment($id, $postKind);
+    $listing = snippe_reload_listing($id) ?: $listing;
+    if (snippe_listing_is_paid($listing, $postKind)) {
+      flash_set('ok', 'Payment already completed.');
       redirect('/pay-listing.php?id=' . $id . $forQs);
     }
-    $pushRes = snippe_send_mobile_ussd_push($snippeRef, $phone);
-    if (!$pushRes['ok']) {
-      flash_set('err', (string)($pushRes['err'] ?? 'Could not resend prompt.'));
-    } else {
-      flash_set('ok', 'Prompt resent to ' . snippe_format_phone_display($phone) . '. Check that phone now.');
+    $res = snippe_create_mobile_payment($listing, $payerUser, $phone, $postKind);
+    if (!$res['ok']) {
+      flash_set('err', (string)($res['err'] ?? 'Could not start a new payment prompt.'));
+      redirect('/pay-listing.php?id=' . $id . $forQs);
     }
+    $promptPhone = (string)($res['push_phone'] ?? $phone);
+    flash_set(
+      'ok',
+      'New USSD prompt sent to ' . snippe_format_phone_display($promptPhone)
+      . '. Approve it on that phone (this starts a fresh payment request).'
+    );
     redirect('/pay-listing.php?id=' . $id . $forQs . '&pending=1');
   }
 
@@ -261,11 +265,11 @@ ob_start();
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem;align-items:flex-start">
           <button type="button" class="btn secondary" id="snippe-check-now">I entered my PIN — check again</button>
           <?php if ($snippeRefWait !== ''): ?>
-            <form method="post" style="margin:0">
-              <input type="hidden" name="action" value="snippe_resend_push">
+            <form method="post" style="margin:0" onsubmit="return confirm('Start a new payment request? Only use this if you did not get a prompt or it expired.');">
+              <input type="hidden" name="action" value="snippe_new_prompt">
               <input type="hidden" name="pay_kind" value="<?= h($kind) ?>">
               <input type="hidden" name="pay_phone" value="<?= h($promptPhoneWait) ?>">
-              <button class="btn secondary" type="submit">Resend prompt</button>
+              <button class="btn secondary" type="submit">Send new prompt</button>
             </form>
           <?php endif; ?>
           <form method="post" style="margin:0" onsubmit="return confirm('Clear this attempt and start a new payment? Only do this if you did NOT complete payment on your phone.');">
@@ -273,7 +277,7 @@ ob_start();
             <button class="btn ghost" type="submit" name="action" value="snippe_abandon">Start over</button>
           </form>
         </div>
-        <p class="sub" style="margin:.65rem 0 0;font-size:.85rem">No prompt after 30 seconds? Confirm the number above, then tap <strong>Resend prompt</strong>. Wrong number? Use <strong>Start over</strong>.</p>
+        <p class="sub" style="margin:.65rem 0 0;font-size:.85rem">No prompt after 30 seconds? Tap <strong>Send new prompt</strong> (starts a new payment). Wrong number? Use <strong>Start over</strong> and pay again with the correct phone.</p>
       </div>
     <?php endif; ?>
 
