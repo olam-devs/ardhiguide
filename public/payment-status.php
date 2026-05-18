@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/bootstrap.php';
 
 header('Content-Type: application/json; charset=UTF-8');
+header('Cache-Control: no-store');
 
 $u = require_auth();
 $id = (int)($_GET['id'] ?? 0);
@@ -30,16 +31,35 @@ if (listing_pay_access_error($row, $u, $kind) !== null) {
   exit;
 }
 
+$snippeStatus = $kind === LISTING_PAY_LAND
+  ? (string)($row['land_snippe_status'] ?? 'none')
+  : (string)($row['snippe_status'] ?? 'none');
+$paid = $kind === LISTING_PAY_LAND
+  ? (($row['land_payment_status'] ?? '') === 'paid')
+  : (($row['payment_status'] ?? '') === 'paid');
+
+if (!$paid && $snippeStatus === 'pending' && snippe_enabled()) {
+  snippe_sync_listing_payment($id, $kind);
+  $st->execute([$id]);
+  $row = $st->fetch() ?: $row;
+  $snippeStatus = $kind === LISTING_PAY_LAND
+    ? (string)($row['land_snippe_status'] ?? 'none')
+    : (string)($row['snippe_status'] ?? 'none');
+  $paid = $kind === LISTING_PAY_LAND
+    ? (($row['land_payment_status'] ?? '') === 'paid')
+    : (($row['payment_status'] ?? '') === 'paid');
+}
+
 if ($kind === LISTING_PAY_LAND) {
   echo json_encode([
     'listing_id' => $id,
     'payment_kind' => $kind,
     'payment_status' => (string)($row['land_payment_status'] ?? 'none'),
     'payment_amount_tzs' => (int)($row['land_payment_amount_tzs'] ?? 0),
-    'snippe_status' => (string)($row['land_snippe_status'] ?? 'none'),
+    'snippe_status' => $snippeStatus,
     'snippe_reference' => (string)($row['land_snippe_reference'] ?? ''),
     'snippe_last_error' => (string)($row['land_snippe_last_error'] ?? ''),
-    'paid' => ($row['land_payment_status'] ?? '') === 'paid',
+    'paid' => $paid,
   ]);
   exit;
 }
@@ -49,8 +69,8 @@ echo json_encode([
   'payment_kind' => $kind,
   'payment_status' => (string)($row['payment_status'] ?? 'pending'),
   'payment_amount_tzs' => (int)($row['payment_amount_tzs'] ?? 0),
-  'snippe_status' => (string)($row['snippe_status'] ?? 'none'),
+  'snippe_status' => $snippeStatus,
   'snippe_reference' => (string)($row['snippe_reference'] ?? ''),
   'snippe_last_error' => (string)($row['snippe_last_error'] ?? ''),
-  'paid' => ($row['payment_status'] ?? '') === 'paid',
+  'paid' => $paid,
 ]);

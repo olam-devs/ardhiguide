@@ -41,6 +41,12 @@ if ($status === 'cancel') {
   redirect($payUrl);
 }
 
+if (snippe_enabled()) {
+  snippe_sync_listing_payment($listingId, $kind);
+  $st->execute([$listingId]);
+  $listing = $st->fetch() ?: $listing;
+}
+
 $paid = $kind === LISTING_PAY_LAND
   ? (($listing['land_payment_status'] ?? '') === 'paid')
   : (($listing['payment_status'] ?? '') === 'paid');

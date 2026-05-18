@@ -16,10 +16,12 @@ if ($rawBody === false || $rawBody === '') {
   exit;
 }
 
-$timestamp = $_SERVER['HTTP_X_WEBHOOK_TIMESTAMP'] ?? null;
-$signature = $_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] ?? null;
+$timestamp = snippe_request_header('X-Webhook-Timestamp');
+$signature = snippe_request_header('X-Webhook-Signature');
+$headerEvent = snippe_request_header('X-Webhook-Event');
 
 if (!snippe_verify_webhook_signature($rawBody, $timestamp, $signature)) {
+  error_log('Snippe webhook: invalid signature (check SNIPPE_WEBHOOK_SECRET matches Snippe dashboard)');
   http_response_code(400);
   echo 'Invalid signature';
   exit;
@@ -46,6 +48,9 @@ if (function_exists('fastcgi_finish_request')) {
 }
 
 try {
+  if ($headerEvent !== null && $headerEvent !== '' && empty($payload['type'])) {
+    $payload['type'] = $headerEvent;
+  }
   snippe_process_webhook_payload($payload, $rawBody);
 } catch (Throwable $e) {
   error_log('Snippe webhook error: ' . $e->getMessage());

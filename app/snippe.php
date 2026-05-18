@@ -123,8 +123,8 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     return ['ok' => false, 'err' => 'Amount must be at least ' . snippe_min_amount_tzs() . ' TZS.'];
   }
 
-  $phoneNorm = normalize_phone($phone);
-  if ($phoneNorm === '' || strlen($phoneNorm) < 9) {
+  $phoneNorm = snippe_format_phone($phone);
+  if ($phoneNorm === '' || strlen($phoneNorm) < 12) {
     return ['ok' => false, 'err' => 'Enter a valid phone number for the payment prompt.'];
   }
 
@@ -140,6 +140,7 @@ function snippe_create_mobile_payment(array $listing, array $payerUser, string $
     'phone_number' => $phoneNorm,
     'customer' => snippe_customer_from_user($payerUser),
     'webhook_url' => snippe_webhook_url(),
+    'external_reference' => $ref !== '' ? $ref : ('LISTING-' . $listingId),
     'metadata' => [
       'listing_id' => (string)$listingId,
       'payment_reference' => $ref,
@@ -200,11 +201,13 @@ function snippe_create_card_payment(array $listing, array $payerUser, ?string $p
   ];
 
   if ($phone !== null && $phone !== '') {
-    $pn = normalize_phone($phone);
+    $pn = snippe_format_phone($phone);
     if ($pn !== '') {
       $body['phone_number'] = $pn;
     }
   }
+
+  $body['external_reference'] = $ref !== '' ? $ref : ('LISTING-' . $listingId);
 
   $res = snippe_api_request('POST', '/v1/payments', $body, snippe_idempotency_key($listingId, $kind));
   if (!$res['ok']) {
@@ -319,6 +322,112 @@ function snippe_event_id_from_payload(array $payload): string {
 /**
  * Verify Snippe webhook HMAC. Returns true if valid or if secret not configured (dev only).
  */
+/** Snippe expects 255XXXXXXXXX (no plus). */
+function snippe_format_phone(string $raw): string {
+  $digits = normalize_phone($raw);
+  if ($digits === '') {
+    return '';
+  }
+  if (strlen($digits) === 9) {
+    $digits = '255' . $digits;
+  }
+  return $digits;
+}
+
+/** Read webhook header case-insensitively. */
+function snippe_request_header(string $name): ?string {
+  $serverKey = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
+  if (!empty($_SERVER[$serverKey])) {
+    return (string)$_SERVER[$serverKey];
+  }
+  if (function_exists('getallheaders')) {
+    $headers = getallheaders();
+    if (is_array($headers)) {
+      foreach ($headers as $k => $v) {
+        if (strcasecmp((string)$k, $name) === 0) {
+          return (string)$v;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * @return array{ok:bool,status?:string,err?:string}
+ */
+function snippe_fetch_payment_status(string $snippeReference): array {
+  if ($snippeReference === '') {
+    return ['ok' => false, 'err' => 'No payment reference'];
+  }
+  $res = snippe_api_request('GET', '/v1/payments/' . rawurlencode($snippeReference), null, null);
+  if (!$res['ok']) {
+    return ['ok' => false, 'err' => (string)($res['err'] ?? 'Could not fetch payment status')];
+  }
+  $status = strtolower((string)($res['status'] ?? ''));
+  if ($status === '') {
+    return ['ok' => false, 'err' => 'Payment status missing in API response'];
+  }
+  return ['ok' => true, 'status' => $status];
+}
+
+function snippe_apply_api_status(int $listingId, string $apiStatus, string $kind, ?string $failureReason = null): void {
+  $status = strtolower($apiStatus);
+  if ($status === 'completed') {
+    listing_snippe_mark_completed($listingId, $kind);
+    return;
+  }
+  if (in_array($status, ['failed', 'voided'], true)) {
+    $msg = $failureReason ?? ('Payment ' . $status);
+    listing_snippe_mark_failed($listingId, $msg, $kind);
+    return;
+  }
+  if ($status === 'expired') {
+    listing_snippe_mark_expired($listingId, $kind);
+  }
+}
+
+/** Poll Snippe when webhook is delayed or misconfigured. Returns true if listing row may have changed. */
+function snippe_sync_listing_payment(int $listingId, string $kind = LISTING_PAY_LISTING_FEE): bool {
+  if (!snippe_enabled()) {
+    return false;
+  }
+  $st = db()->prepare('SELECT * FROM listings WHERE id = ? LIMIT 1');
+  $st->execute([$listingId]);
+  $row = $st->fetch();
+  if (!$row) {
+    return false;
+  }
+
+  if ($kind === LISTING_PAY_LAND) {
+    if (($row['land_payment_status'] ?? '') === 'paid') {
+      return false;
+    }
+    $local = (string)($row['land_snippe_status'] ?? 'none');
+    $ref = (string)($row['land_snippe_reference'] ?? '');
+  } else {
+    if (($row['payment_status'] ?? '') === 'paid') {
+      return false;
+    }
+    $local = (string)($row['snippe_status'] ?? 'none');
+    $ref = (string)($row['snippe_reference'] ?? '');
+  }
+
+  if ($ref === '' || $local !== 'pending') {
+    return false;
+  }
+
+  $api = snippe_fetch_payment_status($ref);
+  if (!$api['ok'] || empty($api['status'])) {
+    return false;
+  }
+  if ($api['status'] === 'pending') {
+    return false;
+  }
+  snippe_apply_api_status($listingId, (string)$api['status'], $kind);
+  return true;
+}
+
 function snippe_verify_webhook_signature(string $rawBody, ?string $timestamp, ?string $signature): bool {
   if (SNIPPE_WEBHOOK_SECRET === '') {
     return true;
@@ -373,11 +482,17 @@ function snippe_process_webhook_payload(array $payload, string $rawJson): bool {
     return false;
   }
 
-  if ($eventType === 'payment.completed') {
+  $data = $payload['data'] ?? $payload;
+  $apiStatus = is_array($data) ? strtolower((string)($data['status'] ?? '')) : '';
+  $failReason = is_array($data) ? (string)($data['failure_reason'] ?? '') : '';
+
+  if ($eventType === 'payment.completed' || $apiStatus === 'completed') {
     listing_snippe_mark_completed($listingId, $payKind);
-  } elseif (in_array($eventType, ['payment.failed', 'payment.voided'], true)) {
-    listing_snippe_mark_failed($listingId, 'Payment ' . str_replace('payment.', '', $eventType), $payKind);
-  } elseif ($eventType === 'payment.expired') {
+  } elseif ($eventType === 'payment.failed' || $apiStatus === 'failed') {
+    listing_snippe_mark_failed($listingId, $failReason !== '' ? $failReason : 'Payment failed', $payKind);
+  } elseif ($eventType === 'payment.voided' || $apiStatus === 'voided') {
+    listing_snippe_mark_failed($listingId, 'Payment voided', $payKind);
+  } elseif ($eventType === 'payment.expired' || $apiStatus === 'expired') {
     listing_snippe_mark_expired($listingId, $payKind);
   } else {
     return true;

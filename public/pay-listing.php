@@ -101,7 +101,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && snippe_enabled()) {
 }
 
 $title = (string)$listing['title'];
+if ($snippeStatus === 'pending' && snippe_enabled()) {
+  snippe_sync_listing_payment($id, $kind);
+  $st->execute([$id]);
+  $listing = $st->fetch() ?: $listing;
+  $ctx = listing_pay_resolve($listing, $u, $for);
+  if ($ctx !== null) {
+    $snippeStatus = (string)$ctx['snippe_status'];
+  }
+}
 $showPending = isset($_GET['pending']) || $snippeStatus === 'pending';
+$justPaid = ($kind === LISTING_PAY_LAND
+  ? (($listing['land_payment_status'] ?? '') === 'paid')
+  : (($listing['payment_status'] ?? '') === 'paid'));
+if ($justPaid && isset($_GET['pending'])) {
+  flash_set('ok', 'Payment received. Thank you!');
+  redirect((string)$ctx['done_url']);
+}
 $defaultPhone = $assignedPhone !== '' ? $assignedPhone : trim((string)($payerUser['phone'] ?? ''));
 $snippeErr = (string)$ctx['snippe_error'];
 
@@ -128,6 +144,7 @@ ob_start();
         <div class="kicker">Waiting for payment</div>
         <p class="sub" style="margin:.5rem 0 0">Approve the prompt on your phone. This page will update when payment is confirmed.</p>
         <p class="sub" id="snippe-wait-status" style="margin-top:.5rem;font-weight:700">Checking status…</p>
+        <button type="button" class="btn secondary" id="snippe-check-now" style="margin-top:.75rem">I entered my PIN — check again</button>
       </div>
     <?php endif; ?>
 
@@ -135,7 +152,7 @@ ob_start();
       <div class="flash danger" style="margin-top:1rem"><?= h($snippeErr) ?></div>
     <?php endif; ?>
 
-    <?php if (snippe_enabled()): ?>
+    <?php if (snippe_enabled() && !($showPending && $snippeStatus === 'pending')): ?>
       <div class="card pad" style="margin-top:1rem">
         <div class="kicker">Pay online</div>
         <p class="sub" style="margin:.35rem 0 1rem">Secure checkout with mobile money (Airtel, M-Pesa, Mixx, Halotel) or card. Enter your PIN only on the USSD prompt on your phone.</p>
@@ -194,17 +211,19 @@ ob_start();
   <script>
   (function () {
     const statusEl = document.getElementById('snippe-wait-status');
+    const checkBtn = document.getElementById('snippe-check-now');
     const listingId = <?= (int)$id ?>;
     const forQs = <?= json_encode($forQs, JSON_THROW_ON_ERROR) ?>;
     const doneUrl = <?= json_encode((string)$ctx['done_url'], JSON_THROW_ON_ERROR) ?>;
     let stopped = false;
     function poll() {
       if (stopped) return;
+      if (statusEl) statusEl.textContent = 'Checking with payment provider…';
       fetch('<?= APP_BASE_URL ?>/payment-status.php?id=' + listingId + forQs, { credentials: 'same-origin' })
         .then(r => r.json())
         .then(data => {
           if (!statusEl || !data) return;
-          if (data.paid) {
+          if (data.paid || data.snippe_status === 'completed') {
             statusEl.textContent = 'Payment confirmed! Redirecting…';
             stopped = true;
             window.location.href = doneUrl;
@@ -213,19 +232,22 @@ ob_start();
           if (data.snippe_status === 'failed') {
             statusEl.textContent = data.snippe_last_error || 'Payment failed. Try again.';
             stopped = true;
+            setTimeout(() => window.location.reload(), 2500);
             return;
           }
           if (data.snippe_status === 'expired') {
             statusEl.textContent = 'Payment expired. Start a new payment.';
             stopped = true;
+            setTimeout(() => window.location.reload(), 2500);
             return;
           }
-          statusEl.textContent = 'Still waiting… check your phone.';
+          statusEl.textContent = 'Still waiting… approve the prompt on your phone, then tap check again.';
         })
-        .catch(() => { if (statusEl) statusEl.textContent = 'Could not check status. Refresh the page.'; });
+        .catch(() => { if (statusEl) statusEl.textContent = 'Could not check status. Tap check again or refresh.'; });
     }
+    if (checkBtn) checkBtn.addEventListener('click', poll);
     poll();
-    setInterval(poll, 4000);
+    setInterval(poll, 3000);
   })();
   </script>
   <?php endif; ?>
