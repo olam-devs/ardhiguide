@@ -185,8 +185,9 @@ ob_start();
             <td><?= (int)$r['is_featured'] ? 'Yes' : 'No' ?></td>
             <td>
               <?php $ps = (string)($r['payment_status'] ?? 'pending'); ?>
-              <span class="pill <?= $ps === 'paid' ? 'ok' : ($ps === 'waived' ? 'neutral' : 'warn') ?>"><?= h($ps) ?></span>
-              <div class="sub" style="font-size:.8rem;margin-top:.2rem"><?= h(format_tzs((string)($r['payment_amount_tzs'] ?? '0'))) ?></div>
+              <?php $ls = (string)($r['land_payment_status'] ?? 'none'); ?>
+              <span class="pill <?= $ps === 'paid' ? 'ok' : ($ps === 'waived' ? 'neutral' : 'warn') ?>" style="font-size:.65rem">fee: <?= h($ps) ?></span>
+              <div class="sub" style="font-size:.8rem;margin-top:.2rem">plot: <span class="pill <?= $ls === 'paid' ? 'ok' : ($ls === 'pending' ? 'warn' : 'neutral') ?>" style="font-size:.65rem"><?= h($ls) ?></span></div>
             </td>
             <td>
               <form method="post" class="small-form admin-action-form" data-listing-id="<?= $rid ?>">
