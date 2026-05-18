@@ -193,6 +193,10 @@ ob_start();
       </div>
     <?php endif; ?>
 
+    <?php if ($retryNotice !== ''): ?>
+      <div class="flash ok" style="margin-top:1rem"><?= h($retryNotice) ?></div>
+    <?php endif; ?>
+
     <?php if ($snippeErr !== '' && $snippeStatus === 'failed'): ?>
       <div class="flash danger" style="margin-top:1rem"><?= h($snippeErr) ?></div>
     <?php endif; ?>
