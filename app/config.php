@@ -51,8 +51,7 @@ define('DB_PASS', (string)cfg('DB_PASS', ''));
 
 define('WHATSAPP_DEFAULT_NUMBER', (string)cfg('WHATSAPP_DEFAULT_NUMBER', '255657925368'));
 
-// Payment instructions (shown on pay-listing page; real M-Pesa API can replace manual flow later)
-define('MPESA_PAYMENT_HINT', (string)cfg('MPESA_PAYMENT_HINT', 'Lipa namba / Till: (set in .env). Use the reference below as the payment description.'));
+// Legacy env key (unused). Payment copy lives in the database payment guide (Snippe) — see payment_guide.php.
 
 // If true, admin cannot approve listings until payment_status is paid or waived
 define('REQUIRE_PAYMENT_FOR_APPROVAL', filter_var((string)cfg('REQUIRE_PAYMENT_FOR_APPROVAL', '0'), FILTER_VALIDATE_BOOLEAN));

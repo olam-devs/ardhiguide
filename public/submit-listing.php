@@ -208,7 +208,7 @@ ob_start();
           <option value="featured">Featured. TSh 30,000</option>
           <option value="premium">Premium. TSh 100,000</option>
         </select>
-        <div class="sub" style="font-size:.92rem;margin-top:.35rem">Fee is due before we prioritise review. Follow the published payment guide for full steps; admin will confirm receipt.</div>
+        <div class="sub" style="font-size:.92rem;margin-top:.35rem">Fee is due before we prioritise review. After submit, open <strong>My listings</strong> → <strong>Pay</strong> (mobile money or card). See the <a href="<?= APP_BASE_URL ?>/payment-instructions.php">payment guide</a>.</div>
       </div>
 
       <div>

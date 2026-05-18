@@ -98,7 +98,7 @@ ob_start();
   <div class="card pad reveal" style="max-width:720px;margin:0 auto">
     <div class="kicker">Listing fee</div>
     <h1>Pay to publish your listing</h1>
-    <div class="sub">Amount set by our team. Pay online with mobile money (USSD prompt) or card, or send proof on WhatsApp.</div>
+    <div class="sub">Amount set by our team. Pay online with mobile money (USSD prompt) or card. See the payment guide below if you need help.</div>
 
     <div class="card pad" style="margin-top:1rem;background:var(--bg2)">
       <div style="font-weight:900;font-size:1.35rem;color:var(--brand-900)"><?= h(format_tzs((string)$amount)) ?></div>
@@ -123,8 +123,8 @@ ob_start();
 
     <?php if (snippe_enabled()): ?>
       <div class="card pad" style="margin-top:1rem">
-        <div class="kicker">Pay online (Snippe)</div>
-        <p class="sub" style="margin:.35rem 0 1rem">Secure payment via mobile money networks (Airtel, M-Pesa, Mixx, Halotel) or card.</p>
+        <div class="kicker">Pay online</div>
+        <p class="sub" style="margin:.35rem 0 1rem">Secure checkout with mobile money (Airtel, M-Pesa, Mixx, Halotel) or card. Enter your PIN only on the USSD prompt on your phone.</p>
 
         <?php if ($pushEnabled && $assignedPhone !== ''): ?>
           <div class="card pad" style="background:var(--gold-50);margin-bottom:1rem;border-color:rgba(165,120,38,.25)">
@@ -151,24 +151,27 @@ ob_start();
       </div>
     <?php else: ?>
       <div class="card pad" style="margin-top:1rem;background:var(--bg2)">
-        <p class="sub" style="margin:0">Online card/mobile checkout is not enabled yet. Use the manual options below or contact admin.</p>
+        <p class="sub" style="margin:0">Online checkout is not enabled yet. Contact us on WhatsApp with your payment code <strong><?= h($ref) ?></strong>.</p>
       </div>
     <?php endif; ?>
 
-    <div class="card pad" style="margin-top:1rem">
-      <div class="kicker">Manual payment</div>
-      <p class="sub" style="margin:.5rem 0 0;line-height:1.75"><?= nl2br(h(MPESA_PAYMENT_HINT)) ?></p>
-      <p class="sub" style="margin-top:.75rem">Include payment code <strong><?= h($ref) ?></strong> in your transaction reference.</p>
-      <div style="margin-top:.8rem">
-        <a class="btn secondary" href="<?= APP_BASE_URL ?>/payment-instructions.php">Open payment guide</a>
+    <div class="card pad" style="margin-top:1rem;background:var(--bg2)">
+      <div class="kicker">How payment works</div>
+      <ul class="sub" style="margin:.65rem 0 0;padding-left:1.15rem;line-height:1.75">
+        <?php foreach (payment_guide_pay_page_summary() as $line): ?>
+          <li><?= payment_guide_format_step($line) ?></li>
+        <?php endforeach; ?>
+      </ul>
+      <div style="margin-top:.85rem">
+        <a class="btn secondary" href="<?= APP_BASE_URL ?>/payment-instructions.php">Full payment guide</a>
       </div>
     </div>
 
-    <div class="receipt-cta" style="margin-top:1rem">
-      <div class="kicker">Already paid manually?</div>
-      <h3>Send your payment receipt on WhatsApp</h3>
-      <p>Forward your confirmation (SMS, screenshot, or bank slip) so we can match code <strong><?= h($ref) ?></strong>.</p>
-      <a class="btn" href="<?= h(whatsapp_link($waMsg)) ?>" target="_blank" rel="noopener">Send receipt on WhatsApp</a>
+    <div class="receipt-cta" style="margin-top:1rem;border-style:dashed">
+      <div class="kicker">Need help?</div>
+      <h3 style="font-size:1.1rem;margin:.35rem 0">Payment problem or special case</h3>
+      <p class="sub" style="margin:0;line-height:1.65">If online checkout failed or you were asked to pay offline, message us on WhatsApp with payment code <strong><?= h($ref) ?></strong> and a screenshot of any confirmation.</p>
+      <a class="btn secondary" style="margin-top:.75rem" href="<?= h(whatsapp_link($waMsg)) ?>" target="_blank" rel="noopener">WhatsApp support</a>
     </div>
 
     <div style="margin-top:1.2rem">

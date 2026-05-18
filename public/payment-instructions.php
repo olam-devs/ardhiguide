@@ -4,58 +4,68 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/bootstrap.php';
 
-$cats = db()->query("SELECT id, title, subtitle FROM payment_categories WHERE is_published = 1 ORDER BY sort_order ASC, id ASC")->fetchAll();
-
-$stepsByCat = [];
-if ($cats) {
-  $ids = array_map(static fn($c) => (int)$c['id'], $cats);
-  $in = implode(',', array_fill(0, count($ids), '?'));
-  $st = db()->prepare("SELECT id, category_id, body FROM payment_steps WHERE category_id IN ($in) ORDER BY sort_order ASC, id ASC");
-  $st->execute($ids);
-  foreach ($st->fetchAll() as $row) {
-    $stepsByCat[(int)$row['category_id']][] = $row;
-  }
-}
+$cats = payment_guide_load_published();
+$snippeOn = snippe_enabled();
 
 ob_start();
 ?>
   <div class="card pad reveal" style="margin-bottom:1rem;border-color:rgba(14,92,74,.18);background:linear-gradient(180deg, var(--surface), var(--bg2))">
     <div class="kicker">Payment guide</div>
     <h1 style="margin:.25rem 0 .55rem">How to pay your listing fee</h1>
-    <p class="lead">Follow the steps that match how you want to pay. If anything is unclear, send us a quick message on WhatsApp.</p>
+    <p class="lead">
+      <?php if ($snippeOn): ?>
+        Pay securely online with <strong>mobile money</strong> (USSD prompt on your phone) or <strong>card</strong>.
+        Enter your PIN only on the prompt on your phone — never share it with anyone. Your payment is confirmed automatically when it succeeds.
+      <?php else: ?>
+        Online checkout is being configured. Use the steps below and contact us on WhatsApp if you need help paying.
+      <?php endif; ?>
+    </p>
     <div style="margin-top:1.1rem;display:flex;gap:.7rem;flex-wrap:wrap">
-      <a class="btn" href="https://wa.me/255657925368" target="_blank" rel="noopener">Open WhatsApp</a>
-      <a class="btn ghost" href="<?= APP_BASE_URL ?>/how-it-works.php">Back to the full guide</a>
+      <?php if ($u = current_user()): ?>
+        <a class="btn" href="<?= APP_BASE_URL ?>/my-listings.php">My listings</a>
+      <?php else: ?>
+        <a class="btn" href="<?= APP_BASE_URL ?>/login.php">Log in to pay</a>
+      <?php endif; ?>
+      <a class="btn secondary" href="<?= h(whatsapp_link('Hello Ardhi Guide, I need help paying my listing fee.')) ?>" target="_blank" rel="noopener">WhatsApp help</a>
+      <a class="btn ghost" href="<?= APP_BASE_URL ?>/how-it-works.php">How it works</a>
     </div>
   </div>
 
   <?php if (!$cats): ?>
     <div class="card pad reveal">
-      <div class="kicker">Coming soon</div>
-      <h2 style="margin:.25rem 0 .55rem">Payment instructions will appear here.</h2>
-      <p class="sub">Our admin team is preparing the payment categories. Please check back shortly, or reach out on WhatsApp for help right now.</p>
+      <div class="kicker">Setting up</div>
+      <h2 style="margin:.25rem 0 .55rem">Payment instructions are being published.</h2>
+      <p class="sub">Please check back shortly or message us on WhatsApp. If you already submitted a listing, open <strong>My listings</strong> and tap <strong>Pay</strong> when online checkout is ready.</p>
     </div>
   <?php else: ?>
+    <?php if ($snippeOn): ?>
+      <div class="card pad reveal" style="margin-bottom:1rem;background:var(--brand-50);border-color:rgba(14,92,74,.22)">
+        <p class="sub" style="margin:0;line-height:1.65">
+          <strong>Quick path:</strong> Log in → <strong>My listings</strong> → <strong>Pay</strong> on your listing → choose
+          <strong>Pay with mobile money</strong> or <strong>Pay with card</strong> on the pay page. No till number or manual transfer needed.
+        </p>
+      </div>
+    <?php endif; ?>
     <div class="pi-grid reveal">
-      <?php foreach ($cats as $i => $c): $cid = (int)$c['id']; $cs = $stepsByCat[$cid] ?? []; ?>
+      <?php foreach ($cats as $i => $c): ?>
         <article class="pi-card">
           <div class="pi-card-head">
             <span class="pi-num"><?= str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT) ?></span>
             <div>
-              <h2 class="pi-title"><?= h((string)$c['title']) ?></h2>
+              <h2 class="pi-title"><?= h($c['title']) ?></h2>
               <?php if (!empty($c['subtitle'])): ?>
-                <p class="pi-subtitle"><?= h((string)$c['subtitle']) ?></p>
+                <p class="pi-subtitle"><?= h($c['subtitle']) ?></p>
               <?php endif; ?>
             </div>
           </div>
-          <?php if ($cs): ?>
+          <?php if (!empty($c['steps'])): ?>
             <ol class="instr-steps">
-              <?php foreach ($cs as $s): ?>
-                <li><?= nl2br(h((string)$s['body'])) ?></li>
+              <?php foreach ($c['steps'] as $s): ?>
+                <li><?= payment_guide_format_step((string)$s['body']) ?></li>
               <?php endforeach; ?>
             </ol>
           <?php else: ?>
-            <p class="sub">Steps will appear here once the admin team adds them.</p>
+            <p class="sub">Steps will appear here once added.</p>
           <?php endif; ?>
         </article>
       <?php endforeach; ?>
@@ -65,11 +75,11 @@ ob_start();
   <section class="cta-banner reveal" style="margin-top:2rem">
     <div>
       <div class="kicker" style="color:var(--gold-100);letter-spacing:.28em">Need help?</div>
-      <h2>Send us a quick <em>WhatsApp</em> and we will walk you through it.</h2>
-      <p>Our team responds during business hours and helps with reference numbers, screenshots of payment, and matching your payment to your listing.</p>
+      <h2>Payment issue? <em>Message us on WhatsApp.</em></h2>
+      <p>Send your listing payment code and a screenshot of any error or confirmation SMS. We respond during business hours.</p>
     </div>
     <div class="btns">
-      <a class="btn" href="https://wa.me/255657925368" target="_blank" rel="noopener">Chat on WhatsApp</a>
+      <a class="btn" href="<?= h(whatsapp_link('Hello Ardhi Guide, I need help with my listing payment.')) ?>" target="_blank" rel="noopener">Chat on WhatsApp</a>
       <a class="btn ghost" href="tel:+255657925368">Call us</a>
     </div>
   </section>

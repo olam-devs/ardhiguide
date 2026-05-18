@@ -132,7 +132,7 @@ ob_start();
       <div class="col-7">
         <div class="kicker">Admin</div>
         <h1 style="margin:.25rem 0 .35rem">Payment instructions</h1>
-        <div class="sub">Create payment categories (for example M-Pesa, bank transfer, escrow). Add steps in order. Tick <strong>Publish</strong> to show a category on the public payment guide.</div>
+        <div class="sub">Edit the public <strong>Payment guide</strong> (mobile money, card, payment code, security tips, troubleshooting). Add categories and steps in order. Tick <strong>Publish</strong> to show each category on the site.</div>
       </div>
       <div class="col-5" style="display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap">
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/listings.php">Listings</a>
@@ -152,11 +152,11 @@ ob_start();
           <input type="hidden" name="action" value="create_category">
           <div>
             <label>Title</label>
-            <input name="title" required placeholder="M-Pesa (Manual)">
+            <input name="title" required placeholder="Pay with mobile money">
           </div>
           <div>
             <label>Subtitle (optional)</label>
-            <input name="subtitle" placeholder="Pay via Vodacom M-Pesa to our paybill">
+            <input name="subtitle" placeholder="Airtel, M-Pesa, Mixx, Halotel — secure online checkout">
           </div>
           <label style="display:flex;align-items:center;gap:.5rem;letter-spacing:0;font-size:.9rem;text-transform:none">
             <input type="checkbox" name="is_published" value="1" style="width:auto;margin:0"> Publish immediately
@@ -229,7 +229,7 @@ ob_start();
             <input type="hidden" name="category_id" value="<?= (int)$active['id'] ?>">
             <div>
               <label>Step body</label>
-              <textarea name="body" required placeholder="Open M-Pesa, choose Lipa na M-Pesa, then Paybill..."></textarea>
+              <textarea name="body" required placeholder="From My listings, tap Pay, then Pay with mobile money..."></textarea>
             </div>
             <button class="btn" type="submit">Add step</button>
           </form>

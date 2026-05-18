@@ -25,7 +25,7 @@ function snippe_idempotency_key(int $listingId): string {
  */
 function snippe_api_request(string $method, string $path, ?array $body = null, ?string $idempotencyKey = null): array {
   if (!snippe_enabled()) {
-    return ['ok' => false, 'err' => 'Snippe payments are not configured on this server.'];
+    return ['ok' => false, 'err' => 'Online payments are not configured on this server.'];
   }
 
   $url = rtrim(SNIPPE_API_BASE, '/') . $path;
@@ -56,12 +56,12 @@ function snippe_api_request(string $method, string $path, ?array $body = null, ?
   curl_close($ch);
 
   if ($raw === false) {
-    return ['ok' => false, 'err' => 'Could not reach Snippe: ' . $curlErr, 'http_code' => $httpCode];
+    return ['ok' => false, 'err' => 'Could not reach the payment service. Try again shortly.', 'http_code' => $httpCode];
   }
 
   $decoded = json_decode((string)$raw, true);
   if (!is_array($decoded)) {
-    return ['ok' => false, 'err' => 'Invalid response from Snippe.', 'http_code' => $httpCode];
+    return ['ok' => false, 'err' => 'Invalid response from the payment service. Try again.', 'http_code' => $httpCode];
   }
 
   if (($decoded['status'] ?? '') === 'success' && isset($decoded['data']) && is_array($decoded['data'])) {
