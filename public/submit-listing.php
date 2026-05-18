@@ -6,9 +6,9 @@ require_once __DIR__ . '/../app/bootstrap.php';
 
 $u = require_auth();
 
-if (!in_array(($u['role'] ?? ''), ['seller','agent','admin'], true)) {
-  flash_set('err', 'Only sellers/agents can submit listings.');
-  redirect('/index.php');
+if (!user_can_manage_listings($u)) {
+  flash_set('err', 'Switch to a Seller account on My account before submitting a listing.');
+  redirect('/my-account.php');
 }
 
 function parse_price(?string $p): ?int {

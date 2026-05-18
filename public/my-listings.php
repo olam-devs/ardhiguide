@@ -5,9 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/bootstrap.php';
 
 $u = require_auth();
-if (!in_array(($u['role'] ?? ''), ['seller', 'agent', 'admin'], true)) {
-  flash_set('err', 'This page is for sellers and agents.');
-  redirect('/index.php');
+if (!user_can_manage_listings($u)) {
+  flash_set('err', 'You need a seller account to manage listings. Open My account to switch to Seller.');
+  redirect('/my-account.php');
 }
 
 $uid = (int)$u['id'];

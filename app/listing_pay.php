@@ -271,3 +271,46 @@ function listing_land_payment_open(array $listing): bool {
     && (string)($listing['land_payment_status'] ?? 'none') === 'pending'
     && (int)($listing['land_payment_amount_tzs'] ?? 0) >= snippe_min_amount_tzs();
 }
+
+function user_owns_listings(int $userId): bool {
+  $st = db()->prepare('SELECT 1 FROM listings WHERE created_by_user_id = ? LIMIT 1');
+  $st->execute([$userId]);
+  return (bool)$st->fetch();
+}
+
+function user_can_manage_listings(array $user): bool {
+  $role = (string)($user['role'] ?? 'buyer');
+  if (in_array($role, ['seller', 'agent', 'admin'], true)) {
+    return true;
+  }
+  return user_owns_listings((int)$user['id']);
+}
+
+/** Listings this user created that still need the publication fee. */
+function user_pending_publication_fees(int $userId): array {
+  $st = db()->prepare(
+    "SELECT id, title, payment_amount_tzs, payment_reference
+     FROM listings
+     WHERE created_by_user_id = ? AND payment_status = 'pending' AND payment_amount_tzs > 0
+     ORDER BY id DESC"
+  );
+  $st->execute([$userId]);
+  return $st->fetchAll();
+}
+
+/** Approved plots this buyer can pay for (admin opened payment). */
+function user_open_land_payments(int $userId): array {
+  $min = snippe_min_amount_tzs();
+  $st = db()->prepare(
+    "SELECT id, title, land_payment_amount_tzs, land_payment_reference, land_payment_user_id
+     FROM listings
+     WHERE verification_status = 'approved'
+       AND land_payment_status = 'pending'
+       AND land_payment_amount_tzs >= ?
+       AND (land_payment_user_id IS NULL OR land_payment_user_id = ?)
+     ORDER BY id DESC
+     LIMIT 30"
+  );
+  $st->execute([$min, $userId]);
+  return $st->fetchAll();
+}

@@ -7,6 +7,15 @@ require_once __DIR__ . '/../app/bootstrap.php';
 $u = require_auth();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $action = (string)($_POST['action'] ?? '');
+  if ($action === 'become_seller' && ($u['role'] ?? '') === 'buyer') {
+    session_start_safe();
+    db()->prepare("UPDATE users SET role = 'seller' WHERE id = ?")->execute([(int)$u['id']]);
+    $_SESSION['user']['role'] = 'seller';
+    flash_set('ok', 'Your account is now a Seller. You can submit listings and pay publication fees from My listings.');
+    redirect('/my-listings.php');
+  }
+
   $current = (string)($_POST['current_password'] ?? '');
   $new     = (string)($_POST['new_password'] ?? '');
   $confirm = (string)($_POST['confirm_password'] ?? '');
@@ -25,6 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $st = db()->prepare('SELECT email, full_name, phone, role, created_at FROM users WHERE id = ? LIMIT 1');
 $st->execute([(int)$u['id']]);
 $profile = $st->fetch() ?: [];
+$role = (string)($profile['role'] ?? $u['role'] ?? 'buyer');
+$uid = (int)$u['id'];
+$pubFees = user_pending_publication_fees($uid);
+$landPays = user_open_land_payments($uid);
 
 ob_start();
 ?>
@@ -61,6 +74,45 @@ ob_start();
       <p class="sub" style="margin-top:.85rem;font-size:.88rem">
         To change your name, phone, or email, please contact the admin team.
       </p>
+      <?php if ($role === 'buyer'): ?>
+        <p class="sub" style="margin-top:.75rem;padding:.75rem;background:var(--bg2);border-radius:10px">
+          You are a <strong>Buyer</strong>. To list land and see <strong>My listings</strong>, use <strong>Switch to Seller</strong> below.
+        </p>
+      <?php endif; ?>
+      <motion style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line)">
+        <div class="kicker">Quick links</div>
+        <div style="display:flex;gap:.55rem;flex-wrap:wrap;margin-top:.6rem">
+          <a class="btn secondary" href="<?= APP_BASE_URL ?>/my-payments.php">Payments</a>
+          <?php if (user_can_manage_listings($u)): ?>
+            <a class="btn secondary" href="<?= APP_BASE_URL ?>/my-listings.php">My listings</a>
+            <a class="btn secondary" href="<?= APP_BASE_URL ?>/submit-listing.php">Submit listing</a>
+          <?php elseif ($role === 'buyer'): ?>
+            <form method="post" style="margin:0">
+              <input type="hidden" name="action" value="become_seller">
+              <button class="btn" type="submit">Switch to Seller (list land)</button>
+            </form>
+          <?php endif; ?>
+          <?php if ($role !== 'admin'): ?>
+            <a class="btn ghost" href="<?= APP_BASE_URL ?>/my-enquiries.php">My enquiries</a>
+          <?php endif; ?>
+          <?php if ($role === 'admin'): ?>
+            <a class="btn" href="<?= APP_BASE_URL ?>/admin/listings.php">Admin panel</a>
+          <?php endif; ?>
+        </motion>
+      </motion>
+      <?php if ($pubFees || $landPays): ?>
+        <div style="margin-top:1rem;padding:1rem;background:var(--gold-50);border-radius:12px;border:1px solid rgba(165,120,38,.25)">
+          <strong>Payment due</strong>
+          <ul class="sub" style="margin:.5rem 0 0;padding-left:1.1rem">
+            <?php foreach ($pubFees as $row): ?>
+              <li><a href="<?= APP_BASE_URL ?>/pay-listing.php?id=<?= (int)$row['id'] ?>">Pay publication fee: <?= h((string)$row['title']) ?></a></li>
+            <?php endforeach; ?>
+            <?php foreach ($landPays as $row): ?>
+              <li><a href="<?= APP_BASE_URL ?>/pay-listing.php?id=<?= (int)$row['id'] ?>&for=land">Pay for plot: <?= h((string)$row['title']) ?></a></li>
+            <?php endforeach; ?>
+          </ul>
+        </motion>
+      <?php endif; ?>
     </div>
 
     <div class="card pad">

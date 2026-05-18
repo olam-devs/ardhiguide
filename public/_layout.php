@@ -4,6 +4,8 @@
 require_once __DIR__ . '/../app/bootstrap.php';
 session_start_safe();
 $u = current_user();
+$navCanManageListings = $u && user_can_manage_listings($u);
+$navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -60,11 +62,14 @@ $u = current_user();
         <a href="<?= APP_BASE_URL ?>/index.php">Browse</a>
         <a href="<?= APP_BASE_URL ?>/how-it-works.php">How it works</a>
         <a href="<?= APP_BASE_URL ?>/payment-instructions.php">Payment guide</a>
-        <?php if ($u && in_array(($u['role'] ?? ''), ['seller', 'agent'], true)): ?>
+        <?php if ($navCanManageListings): ?>
           <a href="<?= APP_BASE_URL ?>/submit-listing.php">Submit listing</a>
           <a href="<?= APP_BASE_URL ?>/my-listings.php">My listings</a>
         <?php endif; ?>
-        <?php if ($u && ($u['role'] ?? '') !== 'admin'): ?>
+        <?php if ($u && in_array(($u['role'] ?? ''), ['buyer', 'seller', 'agent'], true)): ?>
+          <a href="<?= APP_BASE_URL ?>/my-payments.php">Payments</a>
+        <?php endif; ?>
+        <?php if ($u && !$navIsAdmin): ?>
           <a href="<?= APP_BASE_URL ?>/my-enquiries.php">My enquiries</a>
         <?php endif; ?>
         <?php if ($u): ?>
