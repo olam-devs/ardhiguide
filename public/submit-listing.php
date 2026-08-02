@@ -136,12 +136,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($docErr !== null) {
     flash_set('err', 'Listing submitted, but a document failed: ' . $docErr);
   } else {
-    flash_set('ok', $isAdmin ? 'Listing submitted.' : 'Listing submitted. Complete the listing fee to speed up review.');
+    flash_set('ok', $isAdmin ? 'Listing submitted.' : 'Listing submitted. It will be reviewed by our team shortly.');
   }
   if ($isAdmin) {
     redirect('/admin/listings.php');
   }
-  redirect('/pay-listing.php?id=' . $listingId);
+  redirect('/my-listings.php');
 }
 
 ob_start();

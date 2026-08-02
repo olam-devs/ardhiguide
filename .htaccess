@@ -1,13 +1,15 @@
 # Project root .htaccess.
-# Only needed when the entire project (app/, database/, scripts/, storage/, public/)
-# is placed inside public_html. If your subdomain's Document Root is set to
-# `.../ardhi-guide/public` directly, this file is just a safety net.
 #
-# Block direct browser access to non-public folders.
+# Non-public folders (app/, database/, scripts/, storage/) each carry their
+# own "Require all denied" .htaccess directly, rather than denying here and
+# trying to override it deeper in the tree — a blanket deny at this level
+# combined with per-file/per-directory overrides was unreliable on this
+# hosting account's Apache config (overrides were not honored), so each
+# private folder now protects itself independently instead.
+#
+# This root file only adds a defense-in-depth block on .env files anywhere
+# in the tree, and lets index.php (a small redirect to /public/) execute.
 
-Require all denied
-
-# Specifically deny .env files anywhere in this tree
 <FilesMatch "(^\.env|^\.env\..*$|\.env\.example$|\.env\.production\.example$)">
     Require all denied
 </FilesMatch>

@@ -1,0 +1,2 @@
+# Never expose SQL schema/migration files directly through the web.
+Require all denied

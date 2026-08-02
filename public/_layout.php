@@ -61,13 +61,9 @@ $navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
       <div class="nav-links">
         <a href="<?= APP_BASE_URL ?>/index.php">Browse</a>
         <a href="<?= APP_BASE_URL ?>/how-it-works.php">How it works</a>
-        <a href="<?= APP_BASE_URL ?>/payment-instructions.php">Payment guide</a>
         <?php if ($navCanManageListings): ?>
           <a href="<?= APP_BASE_URL ?>/submit-listing.php">Submit listing</a>
           <a href="<?= APP_BASE_URL ?>/my-listings.php">My listings</a>
-        <?php endif; ?>
-        <?php if ($u && in_array(($u['role'] ?? ''), ['buyer', 'seller', 'agent'], true)): ?>
-          <a href="<?= APP_BASE_URL ?>/my-payments.php">Payments</a>
         <?php endif; ?>
         <?php if ($u && !$navIsAdmin): ?>
           <a href="<?= APP_BASE_URL ?>/my-enquiries.php">My enquiries</a>
@@ -123,7 +119,6 @@ $navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
       <nav class="footer-links" aria-label="Footer navigation">
         <a href="<?= APP_BASE_URL ?>/index.php">Browse</a>
         <a href="<?= APP_BASE_URL ?>/how-it-works.php">How it works</a>
-        <a href="<?= APP_BASE_URL ?>/payment-instructions.php">Payment guide</a>
         <a href="<?= APP_BASE_URL ?>/register.php?role=seller">List your land</a>
         <a href="<?= APP_BASE_URL ?>/login.php">Login</a>
         <a href="<?= APP_BASE_URL ?>/register.php">Register</a>

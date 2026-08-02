@@ -8,6 +8,12 @@ DirectoryIndex index.php index.html
 # Disable directory listings
 Options -Indexes
 
+# Reopen access to this directory. The project root .htaccess one level up
+# denies everything by default (so app/, database/, scripts/, storage/ stay
+# hidden when the whole project is placed directly inside public_html); this
+# overrides that denial for the web-facing public/ folder specifically.
+Require all granted
+
 # Block dotfiles like .env, .git, .htaccess from being served
 <FilesMatch "^\.">
     Require all denied

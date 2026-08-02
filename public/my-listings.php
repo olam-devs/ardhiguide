@@ -83,15 +83,10 @@ ob_start();
               <td style="padding:.85rem;border-bottom:1px solid var(--line)"><?= (int)$r['enquiry_count'] ?></td>
               <td style="padding:.85rem;border-bottom:1px solid var(--line)"><?= (int)($r['doc_count'] ?? 0) ?></td>
               <td style="padding:.85rem;border-bottom:1px solid var(--line)">
-                <?php $ps = (string)($r['payment_status'] ?? 'pending'); ?>
-                <span class="pill <?= $ps === 'paid' ? 'ok' : ($ps === 'waived' ? 'neutral' : 'warn') ?>"><?= h($ps) ?></span>
-                <div class="sub" style="font-size:.8rem"><?= h(format_tzs((string)($r['payment_amount_tzs'] ?? '0'))) ?></div>
+                <span class="pill neutral">free</span>
               </td>
               <td style="padding:.85rem;border-bottom:1px solid var(--line)">
                 <div style="display:flex;gap:.45rem;flex-wrap:wrap">
-                  <?php if ($ps === 'pending'): ?>
-                    <a class="btn" style="padding:.55rem .9rem" href="<?= APP_BASE_URL ?>/pay-listing.php?id=<?= (int)$r['id'] ?>">Pay</a>
-                  <?php endif; ?>
                   <a class="btn secondary" style="padding:.55rem .9rem" href="<?= APP_BASE_URL ?>/listing-documents.php?id=<?= (int)$r['id'] ?>">Documents</a>
                   <?php if ($st === 'approved'): ?>
                     <a class="btn secondary" style="padding:.55rem .9rem" href="<?= APP_BASE_URL ?>/listing.php?id=<?= (int)$r['id'] ?>">Public view</a>
