@@ -299,8 +299,11 @@ function user_owns_listings(int $userId): bool {
 
 function user_can_manage_listings(array $user): bool {
   $role = (string)($user['role'] ?? 'buyer');
-  if (in_array($role, ['seller', 'agent', 'admin'], true)) {
-    return true;
+  if ($role === 'admin') return true;
+  if (in_array($role, ['seller', 'agent'], true)) {
+    $st = db()->prepare("SELECT 1 FROM users WHERE id = ? AND verification_status = 'verified' AND is_active = 1 LIMIT 1");
+    $st->execute([(int)$user['id']]);
+    return (bool)$st->fetchColumn();
   }
   return user_owns_listings((int)$user['id']);
 }

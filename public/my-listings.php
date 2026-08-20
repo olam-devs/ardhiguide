@@ -11,8 +11,28 @@ if (!user_can_manage_listings($u)) {
 }
 
 $uid = (int)$u['id'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $id = (int)($_POST['id'] ?? 0);
+  $action = (string)($_POST['action'] ?? '');
+  $own = db()->prepare('SELECT id,is_taken FROM listings WHERE id = ? AND created_by_user_id = ? LIMIT 1');
+  $own->execute([$id, $uid]);
+  $listing = $own->fetch();
+  if (!$listing) {
+    flash_set('err', 'Listing not found.');
+  } elseif ($action === 'mark_taken') {
+    db()->prepare('UPDATE listings SET is_taken = 1, taken_at = NOW() WHERE id = ?')->execute([$id]);
+    flash_set('ok', 'Listing marked as taken and removed from public browse.');
+  } elseif ($action === 'relist') {
+    db()->prepare("UPDATE listings SET is_taken = 0, taken_at = NULL, verification_status = 'submitted', published_at = NULL WHERE id = ?")->execute([$id]);
+    flash_set('ok', 'Relisting submitted for admin approval.');
+  } else {
+    flash_set('err', 'Unknown listing action.');
+  }
+  redirect('/my-listings.php');
+}
+
 $stmt = db()->prepare(
-  "SELECT l.id, l.title, l.region, l.category, l.verification_status, l.verification_badge, l.is_featured, l.created_at,
+  "SELECT l.id,l.title,l.region,l.listing_type,l.verification_status,l.verification_badge,l.is_featured,l.is_taken,l.created_at,
           l.listing_package, l.payment_status, l.payment_amount_tzs, l.video_path,
           (SELECT COUNT(*) FROM enquiries e WHERE e.listing_id = l.id) AS enquiry_count,
           (SELECT COUNT(*) FROM listing_documents d WHERE d.listing_id = l.id) AS doc_count
@@ -60,7 +80,8 @@ ob_start();
             <tr>
               <td style="padding:.85rem;border-bottom:1px solid var(--line)">
                 <div style="font-weight:900"><?= h((string)$r['title']) ?></div>
-                <div class="sub" style="font-size:.9rem"><?= h((string)$r['region']) ?> · <?= h((string)$r['category']) ?></div>
+                <div class="sub" style="font-size:.9rem"><?= h((string)$r['region']) ?> · <?= h(listing_type_label((string)$r['listing_type'])) ?></div>
+                <?php if ((int)$r['is_taken'] === 1): ?><span class="pill neutral" style="margin-top:.35rem">taken</span><?php endif; ?>
                 <?php if (!empty($r['video_path'])): ?>
                   <span class="pill ok" style="margin-top:.35rem;font-size:.62rem">Video uploaded</span>
                 <?php endif; ?>
@@ -88,10 +109,19 @@ ob_start();
               <td style="padding:.85rem;border-bottom:1px solid var(--line)">
                 <div style="display:flex;gap:.45rem;flex-wrap:wrap">
                   <a class="btn secondary" style="padding:.55rem .9rem" href="<?= APP_BASE_URL ?>/listing-documents.php?id=<?= (int)$r['id'] ?>">Documents</a>
+                  <a class="btn secondary" style="padding:.55rem .9rem" href="<?= APP_BASE_URL ?>/edit-listing.php?id=<?= (int)$r['id'] ?>">Edit</a>
                   <?php if ($st === 'approved'): ?>
                     <a class="btn secondary" style="padding:.55rem .9rem" href="<?= APP_BASE_URL ?>/listing.php?id=<?= (int)$r['id'] ?>">Public view</a>
                   <?php endif; ?>
                   <a class="btn secondary" style="padding:.55rem .9rem" href="<?= APP_BASE_URL ?>/preview-listing.php?id=<?= (int)$r['id'] ?>"><?= !empty($r['video_path']) ? 'Preview + video' : 'Preview' ?></a>
+                  <form method="post" style="margin:0">
+                    <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                    <?php if ((int)$r['is_taken'] === 1): ?>
+                      <input type="hidden" name="action" value="relist"><button class="btn" style="padding:.55rem .9rem" type="submit">Relist for review</button>
+                    <?php else: ?>
+                      <input type="hidden" name="action" value="mark_taken"><button class="btn secondary" style="padding:.55rem .9rem" type="submit">Mark taken</button>
+                    <?php endif; ?>
+                  </form>
                 </div>
               </td>
             </tr>
@@ -102,5 +132,5 @@ ob_start();
   </div>
 <?php
 $content = ob_get_clean();
-$title = 'My listings. Ardhi Guide';
+$title = 'My listings. Ardhi Way';
 require __DIR__ . '/_layout.php';

@@ -8,128 +8,140 @@ session_start_safe();
 $viewer = current_user();
 $prefillName = $viewer ? (string)($viewer['full_name'] ?? '') : '';
 $prefillPhone = $viewer ? trim((string)($viewer['phone'] ?? '')) : '';
-
-$listingId = (int)($_GET['listing_id'] ?? 0);
+$listingId = (int)($_GET['listing_id'] ?? $_POST['listing_id'] ?? 0);
 $sent = isset($_GET['sent']);
-$listing = null;
+$requestedType = (string)($_GET['request'] ?? $_POST['request_type'] ?? 'information');
+$requestTypes = [
+  'information' => 'Request more information',
+  'viewing' => 'Request a viewing or meetup',
+  'contact' => 'Initiate contact with the listing provider',
+  'match_me' => 'Ask admin to select a suitable provider',
+];
+if (!isset($requestTypes[$requestedType])) $requestedType = 'information';
 
+$listing = null;
 if ($listingId > 0) {
   $stmt = db()->prepare(
-    "SELECT id, title, region, location_text, price_tzs, land_payment_amount_tzs, land_payment_status, verification_status
-     FROM listings WHERE id = ? AND verification_status = 'approved' LIMIT 1"
+    "SELECT l.id,l.title,l.listing_type,l.region,l.location_text,l.price_min_tzs,l.price_max_tzs,l.created_by_user_id,
+            u.full_name AS provider_name,u.role AS provider_role,u.verification_status AS provider_verification
+     FROM listings l LEFT JOIN users u ON u.id=l.created_by_user_id
+     WHERE l.id=? AND l.verification_status='approved' AND l.is_taken=0 LIMIT 1"
   );
   $stmt->execute([$listingId]);
-  $listing = $stmt->fetch();
+  $listing = $stmt->fetch() ?: null;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $listingId = (int)($_POST['listing_id'] ?? 0);
   $name = trim((string)($_POST['name'] ?? ''));
   $phone = trim((string)($_POST['phone'] ?? ''));
-  $interest = trim((string)($_POST['interest'] ?? ''));
   $message = trim((string)($_POST['message'] ?? ''));
+  $providerPreference = (string)($_POST['provider_preference'] ?? 'listing_provider');
+  if (!isset($requestTypes[$requestedType])) $requestedType = 'information';
+  if (!in_array($providerPreference, ['listing_provider','admin_select'], true)) $providerPreference = 'listing_provider';
+  if ($requestedType === 'match_me') $providerPreference = 'admin_select';
 
   if ($phone === '') {
-    flash_set('err', 'Phone number is required so we can reach you.');
-    redirect('/enquiry.php?listing_id=' . $listingId);
+    flash_set('err', 'Phone number is required so the Ardhi Way team can reach you.');
+    redirect('/enquiry.php?listing_id=' . $listingId . '&request=' . rawurlencode($requestedType));
   }
 
+  $assignedProviderId = null;
+  if ($listing && $providerPreference === 'listing_provider') {
+    $assignedProviderId = (int)($listing['created_by_user_id'] ?? 0) ?: null;
+  }
   $userId = $viewer ? (int)$viewer['id'] : null;
-  $ins = db()->prepare('INSERT INTO enquiries (listing_id,user_id,name,phone,interest,message,user_agent) VALUES (?,?,?,?,?,?,?)');
+  $ins = db()->prepare('INSERT INTO enquiries
+    (listing_id,user_id,name,phone,interest,message,user_agent,request_type,provider_preference,assigned_provider_user_id,assigned_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)');
   $ins->execute([
     $listingId > 0 ? $listingId : null,
     $userId,
     $name !== '' ? $name : null,
     $phone,
-    $interest !== '' ? $interest : null,
+    $requestTypes[$requestedType],
     $message !== '' ? $message : null,
     substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+    $requestedType,
+    $providerPreference,
+    $assignedProviderId,
+    $assignedProviderId ? date('Y-m-d H:i:s') : null,
   ]);
 
-  redirect('/enquiry.php?listing_id=' . $listingId . '&sent=1');
+  if ($userId) {
+    $find = db()->prepare('SELECT id FROM conversations WHERE buyer_user_id=? LIMIT 1');
+    $find->execute([$userId]);
+    $conversationId = (int)($find->fetchColumn() ?: 0);
+    if ($conversationId === 0) {
+      db()->prepare('INSERT INTO conversations (buyer_user_id,last_message_at) VALUES (?,NOW())')->execute([$userId]);
+      $conversationId = (int)db()->lastInsertId();
+    }
+    $chatBody = $requestTypes[$requestedType];
+    if ($message !== '') $chatBody .= "\n" . $message;
+    db()->prepare('INSERT INTO messages (conversation_id,sender_user_id,listing_id,body) VALUES (?,?,?,?)')
+      ->execute([$conversationId,$userId,$listingId > 0 ? $listingId : null,$chatBody]);
+    db()->prepare("UPDATE conversations SET status='open',last_message_at=NOW() WHERE id=?")->execute([$conversationId]);
+  }
+
+  redirect('/enquiry.php?listing_id=' . $listingId . '&request=' . rawurlencode($requestedType) . '&sent=1');
 }
 
-$waMsg = '';
-if ($sent && $listing) {
-  $waMsg = "Hello Ardhi Guide!\n\nFollow-up on my enquiry for:\n" . (string)$listing['title'] . "\n\nPlease share next steps. Asante!";
-}
+$listingUrl = $listing ? rtrim(APP_BASE_URL, '/') . '/listing.php?id=' . (int)$listing['id'] : rtrim(APP_BASE_URL, '/') . '/index.php';
+$waMsg = $listing
+  ? "Hello Ardhi Way, I submitted a request for:\n\n" . (string)$listing['title'] . "\n" . $requestTypes[$requestedType] . "\n\n" . $listingUrl
+  : 'Hello Ardhi Way, I need help finding a suitable property.';
 
 ob_start();
 ?>
-  <div class="card pad reveal" style="max-width:820px;margin:0 auto">
-    <div class="kicker">Enquiry</div>
+  <div class="card pad reveal enquiry-card">
+    <div class="kicker">Property request</div>
     <?php if ($sent): ?>
-      <h1>Enquiry received</h1>
-      <p class="sub" style="line-height:1.7">Thank you. Our team has your details and will follow up. To pay for this plot online, use <strong>Pay</strong> on the listing page (login required).</p>
-      <?php if ($listing && listing_land_payment_open($listing)): ?>
-        <div style="margin-top:1.1rem;display:flex;gap:.7rem;flex-wrap:wrap">
-          <?php if ($viewer): ?>
-            <a class="btn" href="<?= APP_BASE_URL ?>/pay-listing.php?id=<?= (int)$listing['id'] ?>&for=land">Pay <?= h(format_tzs((string)($listing['land_payment_amount_tzs'] ?? '0'))) ?> online</a>
-          <?php else: ?>
-            <a class="btn" href="<?= APP_BASE_URL ?>/login.php?next=<?= rawurlencode('/pay-listing.php?id=' . (int)$listing['id'] . '&for=land') ?>">Log in to pay online</a>
-          <?php endif; ?>
-          <a class="btn secondary" href="<?= APP_BASE_URL ?>/listing.php?id=<?= (int)$listing['id'] ?>">Back to listing</a>
-        </div>
-      <?php endif; ?>
-      <?php if ($waMsg !== ''): ?>
-        <p class="sub" style="margin-top:1.25rem">Optional: continue on WhatsApp.</p>
-        <a class="btn secondary" href="<?= h(whatsapp_link($waMsg)) ?>" target="_blank" rel="noopener">Open WhatsApp (optional)</a>
-      <?php endif; ?>
+      <h1>Your request is with Ardhi Way</h1>
+      <p class="lead">Admin can now review the property, your preferred next step, and the seller or agent connected to it. We will coordinate the response privately.</p>
+      <div class="request-success-actions">
+        <?php if ($viewer): ?><a class="btn" href="<?= APP_BASE_URL ?>/messages.php">Open your Ardhi Way chat</a><?php endif; ?>
+        <?php if ($listing): ?><a class="btn secondary" href="<?= APP_BASE_URL ?>/listing.php?id=<?= (int)$listing['id'] ?>">Back to property</a><?php endif; ?>
+        <a class="btn whatsapp-action" href="<?= h(whatsapp_link($waMsg)) ?>" target="_blank" rel="noopener">Continue on WhatsApp</a>
+      </div>
     <?php else: ?>
-      <h1>Ask about this plot</h1>
-      <div class="sub">Send a question to our team. For payment, use <strong>Pay online</strong> on the listing page — WhatsApp is for messages only.</div>
+      <h1>How would you like to proceed?</h1>
+      <p class="sub">Request details, arrange a viewing, initiate guided contact, or ask admin to select the most suitable provider.</p>
 
       <?php if ($listing): ?>
-        <div class="card pad" style="margin-top:1rem;background:var(--bg2)">
-          <div style="font-weight:900"><?= h((string)$listing['title']) ?></div>
-          <div class="sub" style="margin-top:.25rem;font-size:.95rem">
-            <?= h((string)$listing['region']) ?><?php if (!empty($listing['location_text'])): ?> · <?= h((string)$listing['location_text']) ?><?php endif; ?>
-            · Asking: <?= h(format_tzs((string)($listing['price_tzs'] ?? ''))) ?>
-          </div>
-          <?php if (listing_land_payment_open($listing)): ?>
-            <p class="sub" style="margin-top:.75rem;margin-bottom:0">
-              Payment due: <strong><?= h(format_tzs((string)($listing['land_payment_amount_tzs'] ?? '0'))) ?></strong> —
-              <a href="<?= APP_BASE_URL ?>/<?= $viewer ? 'pay-listing.php?id=' . (int)$listing['id'] . '&for=land' : 'login.php?next=' . rawurlencode('/pay-listing.php?id=' . (int)$listing['id'] . '&for=land') ?>">pay online</a>
-            </p>
-          <?php endif; ?>
-        </div>
+        <a class="attached-listing-card" href="<?= APP_BASE_URL ?>/listing.php?id=<?= (int)$listing['id'] ?>">
+          <span class="pill ok">Approved property</span>
+          <strong><?= h((string)$listing['title']) ?></strong>
+          <span><?= h(listing_type_label((string)$listing['listing_type'])) ?> · <?= h((string)$listing['region']) ?> · <?= h(format_tzs_range($listing['price_min_tzs'], $listing['price_max_tzs'])) ?></span>
+        </a>
       <?php endif; ?>
 
-      <form method="post" class="stack" style="margin-top:1rem">
+      <form method="post" class="stack request-form">
         <input type="hidden" name="listing_id" value="<?= (int)$listingId ?>">
-        <div class="row">
-          <div>
-            <label>Full name</label>
-            <input name="name" placeholder="Optional" value="<?= h($prefillName) ?>">
-          </div>
-          <div>
-            <label>Phone</label>
-            <input name="phone" type="tel" placeholder="0712 345 678" required value="<?= h($prefillPhone) ?>">
+        <div>
+          <label>What do you need?</label>
+          <div class="request-type-grid">
+            <?php foreach ($requestTypes as $key => $label): ?>
+              <label class="request-type-option"><input type="radio" name="request_type" value="<?= h($key) ?>" <?= $requestedType === $key ? 'checked' : '' ?>><span><?= h($label) ?></span></label>
+            <?php endforeach; ?>
           </div>
         </div>
-        <div>
-          <label>Interest</label>
-          <select name="interest">
-            <option value="">Select</option>
-            <option>Buying this land</option>
-            <option>Need more info</option>
-            <option>Request site visit</option>
-            <option>Diaspora investor</option>
-            <option>Legal / Survey service</option>
-          </select>
-        </div>
-        <div>
-          <label>Message</label>
-          <textarea name="message" placeholder="Optional"></textarea>
-        </div>
-        <div style="display:flex;gap:.7rem;flex-wrap:wrap">
-          <button class="btn" type="submit">Send enquiry</button>
-          <a class="btn secondary" href="<?= APP_BASE_URL ?>/<?= $listing ? 'listing.php?id=' . (int)$listing['id'] : 'index.php' ?>">Cancel</a>
-        </div>
+        <?php if ($listing): ?>
+          <div>
+            <label>Who should admin coordinate?</label>
+            <select name="provider_preference">
+              <option value="listing_provider">The <?= h(($listing['provider_role'] ?? '') === 'admin' ? 'Ardhi Way team' : (string)($listing['provider_role'] ?? 'provider')) ?> attached to this property</option>
+              <option value="admin_select">Let admin select another suitable seller or agent</option>
+            </select>
+          </div>
+        <?php else: ?>
+          <input type="hidden" name="provider_preference" value="admin_select">
+        <?php endif; ?>
+        <div class="row"><div><label>Full name</label><input name="name" placeholder="Your name" value="<?= h($prefillName) ?>"></div><div><label>Phone / WhatsApp</label><input name="phone" type="tel" required placeholder="0712 345 678" value="<?= h($prefillPhone) ?>"></div></div>
+        <div><label>Message for admin</label><textarea name="message" placeholder="Preferred day for a viewing, questions, budget, location needs, or any special instructions..."></textarea></div>
+        <div class="form-actions"><button class="btn" type="submit">Send property request</button><a class="btn secondary" href="<?= APP_BASE_URL ?>/<?= $listing ? 'listing.php?id=' . (int)$listing['id'] : 'index.php' ?>">Cancel</a></div>
       </form>
     <?php endif; ?>
   </div>
 <?php
 $content = ob_get_clean();
-$title = 'Enquiry. Ardhi Guide';
+$title = 'Property request. Ardhi Way';
 require __DIR__ . '/_layout.php';

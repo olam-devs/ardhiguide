@@ -64,7 +64,7 @@ ob_start();
       <div style="position:absolute;inset:0;background:linear-gradient(0deg, rgba(20,12,7,.62), rgba(20,12,7,.10), transparent)"></div>
       <div style="position:absolute;left:16px;right:16px;bottom:16px;display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:flex-end">
         <div>
-          <div class="kicker" style="color:rgba(255,255,255,.85)"><?= h((string)$l['region']) ?> · <?= h((string)$l['category']) ?></div>
+          <div class="kicker" style="color:rgba(255,255,255,.85)"><?= h((string)$l['region']) ?> · <?= h(listing_type_label((string)$l['listing_type'])) ?></div>
           <h1 style="margin:.4rem 0 .4rem;color:#fff"><?= h((string)$l['title']) ?></h1>
           <div style="color:rgba(255,255,255,.78);line-height:1.6">
             <?= h((string)($l['location_text'] ?? '')) ?>
@@ -72,7 +72,7 @@ ob_start();
           </div>
         </div>
         <div style="text-align:right;min-width:240px">
-          <div class="price" style="color:#fff;font-size:1.7rem"><?= h(format_tzs((string)($l['price_tzs'] ?? ''))) ?></div>
+          <div class="price" style="color:#fff;font-size:1.7rem"><?= h(format_tzs_range($l['price_min_tzs'], $l['price_max_tzs'])) ?></div>
           <div style="margin-top:.65rem;display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap">
             <a class="btn secondary" href="<?= APP_BASE_URL ?>/my-listings.php">Back</a>
             <?php if ($isPublic): ?>

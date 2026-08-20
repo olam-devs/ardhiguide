@@ -30,7 +30,7 @@ function payment_guide_snippe_defaults(): array {
       'steps' => [
         'From the same pay page, tap **Pay with card**.',
         'You are redirected to a **secure checkout page** (HTTPS) to enter your card details. Pay only on that page — never send card numbers or CVV over WhatsApp, SMS, or email.',
-        'After you finish, you return to Ardhi Guide. Confirmation may take a short moment while we verify the payment.',
+        'After you finish, you return to Ardhi Way. Confirmation may take a short moment while we verify the payment.',
         'Your listing fee is marked **paid** once verification completes. You can track status under **My listings**.',
       ],
     ],

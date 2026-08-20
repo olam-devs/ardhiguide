@@ -8,8 +8,8 @@ ob_start();
 ?>
   <div class="card pad reveal" style="margin-bottom:1rem;border-color:rgba(139,69,19,.2)">
     <div class="kicker">Platform guide</div>
-    <h1>How Ardhi Guide works</h1>
-    <p class="lead">Use this page as the official walkthrough for buyers, sellers, agents, and admins. Verification and payment are explained in plain language.</p>
+    <h1>How Ardhi Way works</h1>
+    <p class="lead">Use this page as the official walkthrough for property seekers, sellers, agents, and property experts. Verification, private requests, guided contact, and expert support are explained in plain language.</p>
     <div style="margin-top:1rem">
       <a class="btn" href="<?= APP_BASE_URL ?>/index.php#browse">Browse listings</a>
       <a class="btn secondary" href="<?= APP_BASE_URL ?>/register.php">Create account</a>
@@ -18,11 +18,11 @@ ob_start();
 
   <div class="instr-columns" style="margin-bottom:1rem">
     <div class="instr-card reveal">
-      <h3>For buyers</h3>
+      <h3>For property seekers</h3>
       <ul>
-        <li>Register as a <strong>buyer</strong> (optional but saves your enquiries under <strong>My enquiries</strong>).</li>
-        <li>Use <strong>Browse</strong> and filters (region, category, keywords) to find approved land.</li>
-        <li>Open a listing, read details and badges. If admin enabled payment, log in and tap <strong>Pay online</strong> for the amount shown. Use <strong>Ask a question</strong> for enquiries (WhatsApp is optional, not for payment).</li>
+        <li>Register as a <strong>property seeker</strong> to save requests, chat with admin, and receive direct property links.</li>
+        <li>Use <strong>Browse</strong> and filters (region, property type, keywords) to find approved property.</li>
+        <li>Open an approved listing and use <strong>Confirm interest</strong>. Ardhi Way coordinates the next step without exposing private seller details.</li>
         <li>Badges (e.g. docs submitted, reviewed) are <strong>internal review levels</strong>, not a government guarantee of ownership. Always do your own due diligence.</li>
       </ul>
     </div>
@@ -30,8 +30,8 @@ ob_start();
       <h3>For sellers &amp; agents</h3>
       <ul>
         <li>Register as <strong>seller</strong> or <strong>agent</strong>, then <strong>Submit listing</strong> with title, location, price, photos, and optional private documents (PDF/images).</li>
-        <li>Choose a <strong>listing package</strong> (Basic, Featured, or Premium). You will get a <strong>payment code</strong> on the pay page, plus steps from the published payment guide.</li>
-        <li>Track everything under <strong>My listings</strong>: status, leads, document count, fee status. Use <strong>Preview</strong> before approval; <strong>Public view</strong> works only after admin approval.</li>
+        <li>Every listing is free to submit and must be approved by admin before property seekers can see it.</li>
+        <li>Track everything under <strong>My listings</strong>: review status, property-request count, and documents. Use <strong>Preview</strong> before approval; <strong>Public view</strong> works only after admin approval.</li>
         <li>Add more verification files anytime under <strong>Documents</strong> for admin review.</li>
       </ul>
     </div>
@@ -51,26 +51,15 @@ ob_start();
       <li>Register and log in as seller or agent.</li>
       <li>Complete <strong>Submit listing</strong> with accurate location and price; add clear photos.</li>
         <li>Upload optional <strong>verification documents</strong> such as title-related files or sketches, whatever your process allows.</li>
-      <li>Complete the <strong>listing fee</strong> on the pay page (mobile money or card).</li>
-      <li>Wait for admin review. When approved, your listing appears on <strong>Browse</strong> and buyers can enquire.</li>
-      <li>Monitor <strong>My listings</strong> for lead counts and follow up on WhatsApp.</li>
+      <li>Wait while admin reviews the listing and its supporting documents. When approved, it can appear in search and admin can choose it for the homepage.</li>
+      <li>Monitor <strong>My listings</strong> for status changes and property-seeker activity.</li>
     </ol>
     <div class="instr-note">
       <strong>Important:</strong> This software does not replace lawyers, surveyors, or government land registries. It organises listings, leads, and internal review, not legal title certification.
     </div>
   </div>
 
-  <div class="card pad reveal" style="margin-bottom:1rem">
-    <h2>Payments</h2>
-    <ul class="sub" style="margin:0;padding-left:1.2rem;line-height:1.75">
-      <li>Fees are set by package (Basic, Featured, Premium) at submit time.</li>
-      <li>Pay online from <strong>My listings</strong> → <strong>Pay</strong>: <strong>mobile money</strong> (USSD prompt on your phone) or <strong>card</strong> on our secure checkout. Your payment code is included automatically. Never share your PIN or card details over chat.</li>
-      <li>Full step-by-step help is on the public <strong>Payment guide</strong> (admins can edit categories under <strong>Payment instructions</strong>).</li>
-      <li>Successful online payments are marked <strong>paid</strong> automatically. Admins can also mark <strong>paid</strong> or <strong>waived</strong> manually after verifying proof.</li>
-    </ul>
-  </div>
-
 <?php
 $content = ob_get_clean();
-$title = 'How it works. Ardhi Guide';
+$title = 'How it works. Ardhi Way';
 require __DIR__ . '/_layout.php';

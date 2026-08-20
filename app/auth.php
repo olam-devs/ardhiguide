@@ -31,12 +31,12 @@ function find_user_by_identifier(string $identifier): ?array {
   $identifier = trim($identifier);
   if ($identifier === '') return null;
   if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
-    $stmt = db()->prepare('SELECT id,email,full_name,phone,role,password_hash,is_active FROM users WHERE email = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT id,email,full_name,phone,role,password_hash,is_active,verification_status,is_super_admin FROM users WHERE email = ? LIMIT 1');
     $stmt->execute([$identifier]);
   } else {
     $phone = normalize_phone($identifier);
     if ($phone === '') return null;
-    $stmt = db()->prepare('SELECT id,email,full_name,phone,role,password_hash,is_active FROM users WHERE phone = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT id,email,full_name,phone,role,password_hash,is_active,verification_status,is_super_admin FROM users WHERE phone = ? LIMIT 1');
     $stmt->execute([$phone]);
   }
   $row = $stmt->fetch();
@@ -56,6 +56,8 @@ function login(string $identifier, string $password): bool {
     'phone' => (string)($u['phone'] ?? ''),
     'full_name' => (string)$u['full_name'],
     'role' => (string)$u['role'],
+    'verification_status' => (string)($u['verification_status'] ?? 'pending'),
+    'is_super_admin' => (int)($u['is_super_admin'] ?? 0),
   ];
   return true;
 }
@@ -87,20 +89,32 @@ function redirect_after_login(): void {
   if (in_array($role, ['seller', 'agent'], true)) {
     redirect('/my-listings.php');
   }
+  if ($role === 'expert') redirect('/expert-assignments.php');
   redirect('/index.php');
 }
 
 /**
- * Register a new user (buyer, seller, or agent only). Returns null on success, or an error message.
- *
- * Phone is required and serves as the primary identifier.
- * Email is optional. When supplied it must be valid and unique.
+ * Register a new buyer, seller, agent, or expert with KYC details.
+ * @param array<string,string> $data
+ * @param array<string,mixed> $passport
  */
-function register_user(?string $email, string $password, string $fullName, string $phone, string $role): ?string {
-  $email = $email !== null ? trim($email) : null;
+function register_user(array $data, array $passport): ?string {
+  $email = trim((string)($data['email'] ?? ''));
   if ($email === '') $email = null;
-  $fullName = trim($fullName);
-  $phone = normalize_phone($phone);
+  $password = (string)($data['password'] ?? '');
+  $fullName = trim((string)($data['full_name'] ?? ''));
+  $phone = normalize_phone((string)($data['phone'] ?? ''));
+  $role = (string)($data['role'] ?? 'buyer');
+  $nida = preg_replace('/\s+/', '', trim((string)($data['nida_number'] ?? ''))) ?? '';
+  $address = trim((string)($data['address_text'] ?? ''));
+  $accountType = (string)($data['account_type'] ?? 'individual');
+  $companyName = trim((string)($data['company_name'] ?? ''));
+  $brela = trim((string)($data['brela_number'] ?? ''));
+  $tin = trim((string)($data['tin_number'] ?? ''));
+  $expertType = (string)($data['expert_type'] ?? '');
+  $regionCode = trim((string)($data['region_code'] ?? ''));
+  $districtCode = trim((string)($data['district_code'] ?? ''));
+  $wardCode = trim((string)($data['ward_code'] ?? ''));
 
   if ($phone === '' || strlen($phone) < 9 || strlen($phone) > 15) {
     return 'Enter a valid phone number (we use it as your login).';
@@ -114,15 +128,51 @@ function register_user(?string $email, string $password, string $fullName, strin
   if (strlen($password) < 8) {
     return 'Password must be at least 8 characters.';
   }
-  if (!in_array($role, ['buyer', 'seller', 'agent'], true)) {
+  if (!in_array($role, ['buyer', 'seller', 'agent', 'expert'], true)) {
     return 'Invalid account type.';
+  }
+  if (strlen($nida) < 8 || strlen($nida) > 40) return 'Enter a valid NIDA number.';
+  if (strlen($address) < 5) return 'Enter your address.';
+  if (empty($passport['ok']) || empty($passport['stored_name'])) return 'A passport photo is required.';
+  if (!in_array($accountType, ['individual', 'company'], true)) $accountType = 'individual';
+  if ($role !== 'agent') $accountType = 'individual';
+  if ($role === 'agent' && $accountType === 'company' && ($companyName === '' || $brela === '' || $tin === '')) {
+    return 'Company agents must provide company name, BRELA registration number, and TIN.';
+  }
+  if ($role === 'expert') {
+    if (!in_array($expertType, ['surveyor', 'valuer', 'town_planner', 'advocate'], true)) return 'Choose your expert profession.';
+    if (!location_selection_valid($regionCode, $districtCode, $wardCode)) return 'Choose a valid region, district, and ward.';
+  } else {
+    $expertType = '';
+    $regionCode = $districtCode = $wardCode = '';
   }
 
   $hash = password_hash($password, PASSWORD_DEFAULT);
+  $verification = $role === 'buyer' ? 'not_required' : 'pending';
+  $pdo = db();
   try {
-    $stmt = db()->prepare('INSERT INTO users (email, full_name, phone, role, password_hash, is_active) VALUES (?,?,?,?,?,1)');
-    $stmt->execute([$email, $fullName, $phone, $role, $hash]);
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare(
+      'INSERT INTO users
+       (email,full_name,phone,role,password_hash,is_active,verification_status,nida_number,address_text,
+        passport_photo_path,account_type,company_name,brela_number,tin_number,expert_type,region_code,district_code,ward_code)
+       VALUES (?,?,?,?,?,1,?,?,?,?,?,?,?,?,?,?,?,?)'
+    );
+    $stmt->execute([
+      $email, $fullName, $phone, $role, $hash, $verification, $nida, $address,
+      (string)$passport['stored_name'], $accountType,
+      $companyName !== '' ? $companyName : null, $brela !== '' ? $brela : null, $tin !== '' ? $tin : null,
+      $expertType !== '' ? $expertType : null,
+      $regionCode !== '' ? $regionCode : null, $districtCode !== '' ? $districtCode : null, $wardCode !== '' ? $wardCode : null,
+    ]);
+    $id = (int)$pdo->lastInsertId();
+    $doc = $pdo->prepare(
+      'INSERT INTO user_documents (user_id,document_type,original_name,stored_name,mime,size_bytes) VALUES (?,\'passport_photo\',?,?,?,?)'
+    );
+    $doc->execute([$id, (string)$passport['original_name'], (string)$passport['stored_name'], (string)$passport['mime'], (int)$passport['size_bytes']]);
+    $pdo->commit();
   } catch (PDOException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
     if (isset($e->errorInfo[1]) && (int)$e->errorInfo[1] === 1062) {
       $msg = strtolower((string)($e->errorInfo[2] ?? ''));
       if (strpos($msg, 'phone') !== false) {
@@ -137,13 +187,14 @@ function register_user(?string $email, string $password, string $fullName, strin
   }
 
   session_start_safe();
-  $id = (int)db()->lastInsertId();
   $_SESSION['user'] = [
     'id' => $id,
     'email' => $email ?? '',
     'phone' => $phone,
     'full_name' => $fullName,
     'role' => $role,
+    'verification_status' => $verification,
+    'is_super_admin' => 0,
   ];
   return null;
 }
@@ -205,7 +256,7 @@ function admin_set_user_active(int $targetUserId, bool $active): void {
 
 /** Admin: set a user's role. */
 function admin_set_user_role(int $targetUserId, string $role): ?string {
-  if (!in_array($role, ['buyer', 'seller', 'agent', 'admin'], true)) {
+  if (!in_array($role, ['buyer', 'seller', 'agent', 'expert', 'admin'], true)) {
     return 'Invalid role.';
   }
   $up = db()->prepare('UPDATE users SET role = ? WHERE id = ?');

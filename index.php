@@ -1,3 +1,3 @@
 <?php
-header('Location: https://ardhiguide.com/public/', true, 302);
+header('Location: https://ardhiway.co.tz/public/', true, 302);
 exit;

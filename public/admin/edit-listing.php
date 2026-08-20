@@ -65,6 +65,10 @@ if (!$listing) {
   redirect('/admin/listings.php');
 }
 
+$regions = location_regions();
+$districts = !empty($listing['region_code']) ? location_districts((string)$listing['region_code']) : [];
+$wards = !empty($listing['district_code']) ? location_wards((string)$listing['region_code'], (string)$listing['district_code']) : [];
+
 $images = listing_admin_images($listingId);
 $docSt = db()->prepare('SELECT COUNT(*) AS c FROM listing_documents WHERE listing_id = ?');
 $docSt->execute([$listingId]);
@@ -92,24 +96,29 @@ ob_start();
 
     <div class="grid" style="margin-top:1.25rem;align-items:start;gap:1.25rem">
       <div class="col-7">
-        <form method="post" enctype="multipart/form-data" class="stack">
+        <form method="post" enctype="multipart/form-data" class="stack" data-listing-form>
           <div>
             <label>Title</label>
             <input name="title" required value="<?= h((string)$listing['title']) ?>">
           </div>
           <div class="row">
             <div>
-              <label>Category</label>
-              <select name="category">
-                <?php foreach (['residential','agricultural','commercial','industrial','other'] as $cat): ?>
-                  <option value="<?= h($cat) ?>" <?= ($listing['category'] ?? '') === $cat ? 'selected' : '' ?>><?= h(ucfirst($cat)) ?></option>
+              <label>Property type</label>
+              <select name="listing_type" data-listing-type>
+                <?php foreach (['plot_for_sale','house_for_sale','house_for_rent','apartment'] as $type): ?>
+                  <option value="<?= h($type) ?>" <?= ($listing['listing_type'] ?? '') === $type ? 'selected' : '' ?>><?= h(listing_type_label($type)) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
-            <div>
-              <label>Region</label>
-              <input name="region" required value="<?= h((string)$listing['region']) ?>">
+            <div data-furnishing-field>
+              <label>Furnishing</label>
+              <select name="furnishing_status"><option value="furnished" <?= ($listing['furnishing_status']??'')==='furnished'?'selected':'' ?>>Furnished with everything</option><option value="unfurnished" <?= ($listing['furnishing_status']??'')==='unfurnished'?'selected':'' ?>>Unfurnished</option></select>
             </div>
+          </div>
+          <div class="location-grid" data-location-picker data-locations-url="<?= APP_BASE_URL ?>/locations-api.php">
+            <div><label>Region</label><select name="region_code" data-region required><option value="">Choose region</option><?php foreach($regions as $row):?><option value="<?= h($row['code']) ?>" <?= $listing['region_code']===$row['code']?'selected':'' ?>><?= h($row['name']) ?></option><?php endforeach;?></select></div>
+            <div><label>District / council</label><select name="district_code" data-district required><option value="">Choose district</option><?php foreach($districts as $row):?><option value="<?= h($row['code']) ?>" <?= $listing['district_code']===$row['code']?'selected':'' ?>><?= h($row['name']) ?></option><?php endforeach;?></select></div>
+            <div><label>Ward</label><select name="ward_code" data-ward required><option value="">Choose ward</option><?php foreach($wards as $row):?><option value="<?= h($row['code']) ?>" <?= $listing['ward_code']===$row['code']?'selected':'' ?>><?= h($row['name']) ?></option><?php endforeach;?></select></div>
           </div>
           <div class="row">
             <div>
@@ -123,12 +132,12 @@ ob_start();
           </div>
           <div class="row">
             <div>
-              <label>Price (TZS)</label>
-              <input name="price_tzs" value="<?= h((string)($listing['price_tzs'] ?? '')) ?>">
+              <label>Minimum price / rent (TZS)</label>
+              <input name="price_min_tzs" value="<?= h((string)($listing['price_min_tzs'] ?? '')) ?>">
             </div>
             <div>
-              <label>WhatsApp contact</label>
-              <input name="contact_whatsapp" value="<?= h((string)($listing['contact_whatsapp'] ?? '')) ?>">
+              <label>Maximum price / rent (TZS)</label>
+              <input name="price_max_tzs" value="<?= h((string)($listing['price_max_tzs'] ?? '')) ?>">
             </div>
           </div>
           <div>
@@ -136,8 +145,8 @@ ob_start();
             <textarea name="description" rows="6"><?= h((string)($listing['description'] ?? '')) ?></textarea>
           </div>
           <div>
-            <label>Listing package (publication fee tier)</label>
-            <select name="listing_package">
+            <label hidden>Legacy listing package</label>
+            <select name="listing_package" hidden disabled>
               <option value="basic" <?= $pkg === 'basic' ? 'selected' : '' ?>>Basic — <?= h(format_tzs((string)listing_package_amount_tzs('basic'))) ?></option>
               <option value="featured" <?= $pkg === 'featured' ? 'selected' : '' ?>>Featured — <?= h(format_tzs((string)listing_package_amount_tzs('featured'))) ?></option>
               <option value="premium" <?= $pkg === 'premium' ? 'selected' : '' ?>>Premium — <?= h(format_tzs((string)listing_package_amount_tzs('premium'))) ?></option>

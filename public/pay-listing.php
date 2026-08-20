@@ -322,7 +322,7 @@ ob_start();
       </div>
     <?php else: ?>
       <div class="card pad" style="margin-top:1rem;background:var(--bg2)">
-        <p class="sub" style="margin:0">Online checkout is not available right now. Please try again later or <a href="<?= h(whatsapp_link('Hello Ardhi Guide, I need help with an online payment.')) ?>" target="_blank" rel="noopener">contact us</a>.</p>
+        <p class="sub" style="margin:0">Online checkout is not available right now. Please try again later or <a href="<?= h(whatsapp_link('Hello Ardhi Way, I need help with an online payment.')) ?>" target="_blank" rel="noopener">contact us</a>.</p>
       </div>
     <?php endif; ?>
 
@@ -419,5 +419,5 @@ ob_start();
   <?php endif; ?>
 <?php
 $content = ob_get_clean();
-$title = ($kind === LISTING_PAY_LAND ? 'Pay for plot' : 'Pay listing fee') . '. Ardhi Guide';
+$title = ($kind === LISTING_PAY_LAND ? 'Pay for plot' : 'Pay listing fee') . '. Ardhi Way';
 require __DIR__ . '/_layout.php';

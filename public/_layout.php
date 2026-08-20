@@ -12,6 +12,9 @@ $navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0E5C4A">
+  <meta name="application-name" content="Ardhi Way">
+  <meta name="mobile-web-app-capable" content="yes">
   <title><?= h($title) ?></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,11 +22,12 @@ $navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
   <?php $__cssVer = @filemtime(__DIR__ . '/assets/app.css') ?: time(); ?>
   <link rel="stylesheet" href="<?= APP_BASE_URL ?>/assets/app.css?v=<?= (int)$__cssVer ?>">
   <link rel="icon" type="image/svg+xml" href="<?= APP_BASE_URL ?>/assets/favicon.svg">
+  <link rel="manifest" href="<?= APP_BASE_URL ?>/manifest.webmanifest">
 </head>
 <body>
   <div class="topbar">
     <div class="topbar-inner">
-      <div><span class="dot"></span>Dar es Salaam, Tanzania &nbsp;&middot;&nbsp; Verified land marketplace</div>
+      <div><span class="dot"></span>Dar es Salaam, Tanzania &nbsp;&middot;&nbsp; Guided property marketplace</div>
       <div style="display:flex;gap:1.1rem;flex-wrap:wrap;align-items:center">
         <a href="tel:+255657925368">+255 657 925 368</a>
         <a href="https://wa.me/255657925368" target="_blank" rel="noopener">WhatsApp us</a>
@@ -34,7 +38,7 @@ $navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
 
   <div class="nav">
     <div class="nav-inner">
-      <a class="brand" href="<?= APP_BASE_URL ?>/index.php" aria-label="Ardhi Guide home">
+      <a class="brand" href="<?= APP_BASE_URL ?>/index.php" aria-label="Ardhi Way home">
         <span class="mark" aria-hidden="true">
           <svg viewBox="0 0 44 44" width="44" height="44">
             <defs>
@@ -54,8 +58,8 @@ $navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
           </svg>
         </span>
         <span class="brand-text">
-          <strong>Ardhi Guide</strong>
-          <span class="brand-tag">Tanzania land</span>
+          <strong>Ardhi Way</strong>
+          <span class="brand-tag">Tanzania property</span>
         </span>
       </a>
       <div class="nav-links">
@@ -66,12 +70,18 @@ $navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
           <a href="<?= APP_BASE_URL ?>/my-listings.php">My listings</a>
         <?php endif; ?>
         <?php if ($u && !$navIsAdmin): ?>
-          <a href="<?= APP_BASE_URL ?>/my-enquiries.php">My enquiries</a>
+          <a href="<?= APP_BASE_URL ?>/my-enquiries.php">My requests</a>
+          <a href="<?= APP_BASE_URL ?>/messages.php">Support chat</a>
+          <a href="<?= APP_BASE_URL ?>/expert-request.php">Expert help</a>
+          <?php if (($u['role'] ?? '') === 'expert'): ?><a href="<?= APP_BASE_URL ?>/expert-assignments.php">Assignments</a><?php endif; ?>
         <?php endif; ?>
         <?php if ($u): ?>
           <a href="<?= APP_BASE_URL ?>/my-account.php">My account</a>
         <?php endif; ?>
         <?php if ($u && ($u['role'] ?? '') === 'admin'): ?>
+          <a href="<?= APP_BASE_URL ?>/admin/users.php">Users</a>
+          <a href="<?= APP_BASE_URL ?>/admin/messages.php">Messages</a>
+          <a href="<?= APP_BASE_URL ?>/admin/expert-requests.php">Expert requests</a>
           <a href="<?= APP_BASE_URL ?>/admin/listings.php" class="cta">Admin</a>
         <?php endif; ?>
         <?php if ($u): ?>
@@ -93,7 +103,7 @@ $navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
 
   <footer>
     <div class="footer-inner footer-center">
-      <a class="footer-brand-link" href="<?= APP_BASE_URL ?>/index.php" aria-label="Ardhi Guide home">
+      <a class="footer-brand-link" href="<?= APP_BASE_URL ?>/index.php" aria-label="Ardhi Way home">
         <span class="mark mark-lg" aria-hidden="true">
           <svg viewBox="0 0 44 44" width="56" height="56">
             <defs>
@@ -112,17 +122,37 @@ $navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
             <circle cx="21.5" cy="37" r="1.4" fill="#D4A24C"/>
           </svg>
         </span>
-        <span class="footer-brand">Ardhi Guide</span>
+        <span class="footer-brand">Ardhi Way</span>
       </a>
-      <p class="footer-desc">A Tanzania land marketplace. Browse approved plots, send enquiries on WhatsApp, list your land with optional verification documents.</p>
+      <p class="footer-desc">A guided Tanzania property marketplace for plots, houses, apartments, rentals, viewings, trusted introductions, and professional property support.</p>
 
       <nav class="footer-links" aria-label="Footer navigation">
         <a href="<?= APP_BASE_URL ?>/index.php">Browse</a>
         <a href="<?= APP_BASE_URL ?>/how-it-works.php">How it works</a>
-        <a href="<?= APP_BASE_URL ?>/register.php?role=seller">List your land</a>
+        <a href="<?= APP_BASE_URL ?>/register.php?role=seller">List property</a>
         <a href="<?= APP_BASE_URL ?>/login.php">Login</a>
         <a href="<?= APP_BASE_URL ?>/register.php">Register</a>
       </nav>
+
+      <div class="footer-social" aria-label="Follow Ardhi Way on social media">
+        <span class="footer-social-label">Follow Ardhi Way</span>
+        <div class="social-links">
+          <a class="social-link instagram" href="https://www.instagram.com/ardhiguideplatform?igsh=ZnQyYWdnMmswbGh2" target="_blank" rel="noopener noreferrer" aria-label="Follow Ardhi Way on Instagram">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="5"/>
+              <circle cx="12" cy="12" r="4"/>
+              <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+            <span>Instagram</span>
+          </a>
+          <a class="social-link tiktok" href="https://www.tiktok.com/@ardhiguide1?_r=1&amp;_t=ZS-98YQV04XVm0" target="_blank" rel="noopener noreferrer" aria-label="Follow Ardhi Way on TikTok">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M14.2 3h3.05a4.8 4.8 0 0 0 3.75 3.75v3.08a7.8 7.8 0 0 1-3.72-1.05v6.5a6.28 6.28 0 1 1-5.43-6.22v3.12a3.22 3.22 0 1 0 2.35 3.1V3Z"/>
+            </svg>
+            <span>TikTok</span>
+          </a>
+        </div>
+      </div>
 
       <div class="contact-buttons">
         <a class="contact-btn phone lg" href="tel:+255657925368">
@@ -135,9 +165,14 @@ $navIsAdmin = $u && (($u['role'] ?? '') === 'admin');
         </a>
       </div>
 
-      <div class="footer-copy">&copy; <?= date('Y') ?> Ardhi Guide. Dar es Salaam, Tanzania.</div>
+      <div class="footer-copy">&copy; <?= date('Y') ?> Ardhi Way. Dar es Salaam, Tanzania.</div>
     </div>
   </footer>
+
+  <a class="floating-whatsapp" href="<?= h(whatsapp_link('Hello Ardhi Way, I need help finding or following up on a property.')) ?>" target="_blank" rel="noopener" aria-label="Chat with Ardhi Way on WhatsApp">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M.057 24l1.687-6.163A11.867 11.867 0 0 1 .096 11.86C.099 5.334 5.43.003 11.954.003a11.815 11.815 0 0 1 8.413 3.488 11.821 11.821 0 0 1 3.48 8.414c-.003 6.526-5.335 11.857-11.86 11.857a11.9 11.9 0 0 1-5.674-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+    <span>WhatsApp admin</span>
+  </a>
 
   <div id="toast-host" class="toast-host" aria-live="polite" aria-atomic="true"></div>
 

@@ -26,7 +26,7 @@ ob_start();
       <?php else: ?>
         <a class="btn" href="<?= APP_BASE_URL ?>/login.php">Log in to pay</a>
       <?php endif; ?>
-      <a class="btn secondary" href="<?= h(whatsapp_link('Hello Ardhi Guide, I need help paying my listing fee.')) ?>" target="_blank" rel="noopener">WhatsApp help</a>
+      <a class="btn secondary" href="<?= h(whatsapp_link('Hello Ardhi Way, I need help paying my listing fee.')) ?>" target="_blank" rel="noopener">WhatsApp help</a>
       <a class="btn ghost" href="<?= APP_BASE_URL ?>/how-it-works.php">How it works</a>
     </div>
   </div>
@@ -79,7 +79,7 @@ ob_start();
       <p>Send your listing payment code and a screenshot of any error or confirmation SMS. We respond during business hours.</p>
     </div>
     <div class="btns">
-      <a class="btn" href="<?= h(whatsapp_link('Hello Ardhi Guide, I need help with my listing payment.')) ?>" target="_blank" rel="noopener">Chat on WhatsApp</a>
+      <a class="btn" href="<?= h(whatsapp_link('Hello Ardhi Way, I need help with my listing payment.')) ?>" target="_blank" rel="noopener">Chat on WhatsApp</a>
       <a class="btn ghost" href="tel:+255657925368">Call us</a>
     </div>
   </section>
@@ -111,5 +111,5 @@ ob_start();
   </style>
 <?php
 $content = ob_get_clean();
-$title = 'Payment guide. Ardhi Guide';
+$title = 'Payment guide. Ardhi Way';
 require __DIR__ . '/_layout.php';

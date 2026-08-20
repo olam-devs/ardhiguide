@@ -1,5 +1,5 @@
 -- =========================================================================
--- Ardhi Guide consolidated install script (MySQL / MariaDB).
+-- Ardhi Way consolidated install script (MySQL / MariaDB).
 -- Run this once in phpMyAdmin (or `mysql < install.sql`) on a fresh database.
 -- It is safe to re-run: every CREATE uses IF NOT EXISTS and every ALTER is
 -- wrapped in a procedure that skips already-existing columns / keys.
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS snippe_webhook_events (
 INSERT INTO users (email, full_name, phone, role, password_hash, is_active)
 VALUES (
   'admin@ardhiguide.local',
-  'Ardhi Guide Admin',
+  'Ardhi Way Admin',
   '255657925368',
   'admin',
   '$2y$10$mbAKdvIrXGwui6c53TgVU.fnyhjIo8.8nUmHPWLkkvNtTaWkxf6fK',

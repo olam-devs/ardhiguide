@@ -131,10 +131,10 @@ ob_start();
       <div class="card pad reveal">
         <div class="kicker">Facts</div>
         <ul class="sub" style="margin:.5rem 0 0;padding-left:1.1rem;line-height:1.8">
-          <li>Category: <?= h((string)$listing['category']) ?></li>
+          <li>Property type: <?= h(listing_type_label((string)$listing['listing_type'])) ?></li>
           <li>Location: <?= h((string)($listing['location_text'] ?? '')) ?></li>
           <li>Size: <?= h((string)($listing['size_text'] ?? '')) ?></li>
-          <li>Price: <?= h(format_tzs((string)($listing['price_tzs'] ?? ''))) ?></li>
+          <li>Price range: <?= h(format_tzs_range($listing['price_min_tzs'], $listing['price_max_tzs'])) ?></li>
           <li>Badge: <?= h((string)$listing['verification_badge']) ?></li>
           <li>Package: <?= h((string)($listing['listing_package'] ?? 'basic')) ?></li>
           <li>Seller fee: <?= h((string)($listing['payment_status'] ?? 'pending')) ?> · <?= h(format_tzs((string)($listing['payment_amount_tzs'] ?? '0'))) ?></li>

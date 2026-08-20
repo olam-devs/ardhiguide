@@ -9,11 +9,8 @@ $u = require_auth();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $action = (string)($_POST['action'] ?? '');
   if ($action === 'become_seller' && ($u['role'] ?? '') === 'buyer') {
-    session_start_safe();
-    db()->prepare("UPDATE users SET role = 'seller' WHERE id = ?")->execute([(int)$u['id']]);
-    $_SESSION['user']['role'] = 'seller';
-    flash_set('ok', 'Your account is now a Seller. You can submit listings and pay publication fees from My listings.');
-    redirect('/my-listings.php');
+    flash_set('err', 'Seller accounts require KYC review. Contact the admin team to change your account role.');
+    redirect('/messages.php');
   }
 
   $current = (string)($_POST['current_password'] ?? '');
@@ -31,13 +28,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Refresh full profile from DB so we display the latest values
-$st = db()->prepare('SELECT email, full_name, phone, role, created_at FROM users WHERE id = ? LIMIT 1');
+$st = db()->prepare('SELECT email,full_name,phone,role,verification_status,nida_number,address_text,created_at FROM users WHERE id = ? LIMIT 1');
 $st->execute([(int)$u['id']]);
 $profile = $st->fetch() ?: [];
 $role = (string)($profile['role'] ?? $u['role'] ?? 'buyer');
 $uid = (int)$u['id'];
-$pubFees = user_pending_publication_fees($uid);
-$landPays = user_open_land_payments($uid);
+$pubFees = [];
+$landPays = [];
 
 ob_start();
 ?>
@@ -71,29 +68,35 @@ ob_start();
           <input type="text" value="<?= h((string)($profile['email'] ?? '')) ?>" placeholder="Not set" disabled>
         </div>
       </div>
+      <div class="row" style="margin-top:.65rem">
+        <div><label>Verification</label><input type="text" value="<?= h(str_replace('_', ' ', (string)($profile['verification_status'] ?? 'pending'))) ?>" disabled></div>
+        <div><label>NIDA</label><input type="text" value="<?= h((string)($profile['nida_number'] ?? '')) ?>" disabled></div>
+      </div>
+      <div style="margin-top:.65rem"><label>Address</label><textarea disabled><?= h((string)($profile['address_text'] ?? '')) ?></textarea></div>
       <p class="sub" style="margin-top:.85rem;font-size:.88rem">
         To change your name, phone, or email, please contact the admin team.
       </p>
       <?php if ($role === 'buyer'): ?>
         <p class="sub" style="margin-top:.75rem;padding:.75rem;background:var(--bg2);border-radius:10px">
-          You are a <strong>Buyer</strong>. To list land and see <strong>My listings</strong>, use <strong>Switch to Seller</strong> below.
+          You are a <strong>Property seeker</strong>. You can buy, rent, request viewings, chat with admin, and ask for expert help. To upload property, use <strong>Switch to Seller</strong> below.
         </p>
       <?php endif; ?>
       <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line)">
         <div class="kicker">Quick links</div>
         <div style="display:flex;gap:.55rem;flex-wrap:wrap;margin-top:.6rem">
-          <a class="btn secondary" href="<?= APP_BASE_URL ?>/my-payments.php">Payments</a>
+          <a class="btn secondary" href="<?= APP_BASE_URL ?>/messages.php">Messages</a>
+          <a class="btn secondary" href="<?= APP_BASE_URL ?>/expert-request.php">Request expert</a>
           <?php if (user_can_manage_listings($u)): ?>
             <a class="btn secondary" href="<?= APP_BASE_URL ?>/my-listings.php">My listings</a>
             <a class="btn secondary" href="<?= APP_BASE_URL ?>/submit-listing.php">Submit listing</a>
           <?php elseif ($role === 'buyer'): ?>
             <form method="post" style="margin:0">
               <input type="hidden" name="action" value="become_seller">
-              <button class="btn" type="submit">Switch to Seller (list land)</button>
+              <button class="btn" type="submit">Request seller verification</button>
             </form>
           <?php endif; ?>
           <?php if ($role !== 'admin'): ?>
-            <a class="btn ghost" href="<?= APP_BASE_URL ?>/my-enquiries.php">My enquiries</a>
+            <a class="btn ghost" href="<?= APP_BASE_URL ?>/my-enquiries.php">My property requests</a>
           <?php endif; ?>
           <?php if ($role === 'admin'): ?>
             <a class="btn" href="<?= APP_BASE_URL ?>/admin/listings.php">Admin panel</a>
@@ -161,5 +164,5 @@ ob_start();
   </div>
 <?php
 $content = ob_get_clean();
-$title = 'My account. Ardhi Guide';
+$title = 'My account. Ardhi Way';
 require __DIR__ . '/_layout.php';

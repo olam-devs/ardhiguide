@@ -1,4 +1,4 @@
--- Ardhi Guide schema (MySQL).
+-- Ardhi Way schema (MySQL).
 
 CREATE TABLE IF NOT EXISTS users (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS listing_documents (
 INSERT INTO users (email, full_name, role, password_hash, is_active)
 VALUES (
   'admin@ardhiguide.local',
-  'Ardhi Guide Admin',
+  'Ardhi Way Admin',
   'admin',
   '$2y$10$mbAKdvIrXGwui6c53TgVU.fnyhjIo8.8nUmHPWLkkvNtTaWkxf6fK',
   1

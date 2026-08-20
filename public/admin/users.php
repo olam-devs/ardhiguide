@@ -5,6 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../app/bootstrap.php';
 
 $u = require_role('admin');
+$superSt = db()->prepare('SELECT is_super_admin FROM users WHERE id = ?');
+$superSt->execute([(int)$u['id']]);
+$isSuperAdmin = (bool)$superSt->fetchColumn();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $id = (int)($_POST['id'] ?? 0);
@@ -31,7 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       flash_set('err', 'You cannot change your own role.');
     } else {
       $role = (string)($_POST['role'] ?? '');
-      $err = admin_set_user_role($id, $role);
+      $err = $role === 'admin' && !$isSuperAdmin
+        ? 'Only a super admin can create another admin.'
+        : admin_set_user_role($id, $role);
       if ($err !== null) {
         flash_set('err', $err);
       } else {
@@ -52,11 +57,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   redirect('/admin/users.php');
 }
 
-$stmt = db()->query(
-  'SELECT id, email, full_name, phone, role, is_active, created_at
-     FROM users
-    ORDER BY FIELD(role, "admin", "agent", "seller", "buyer"), created_at DESC'
+$q = trim((string)($_GET['q'] ?? ''));
+$roleFilter = (string)($_GET['role'] ?? '');
+$where = ['1=1']; $params = [];
+if ($q !== '') { $where[] = '(full_name LIKE ? OR phone LIKE ? OR email LIKE ? OR nida_number LIKE ?)'; $like = '%' . $q . '%'; array_push($params, $like, $like, $like, $like); }
+if (in_array($roleFilter, ['buyer','seller','agent','expert','admin'], true)) { $where[] = 'role = ?'; $params[] = $roleFilter; }
+$stmt = db()->prepare(
+  'SELECT id,email,full_name,phone,role,is_active,verification_status,created_at FROM users WHERE ' . implode(' AND ', $where) .
+  ' ORDER BY FIELD(role,"admin","expert","agent","seller","buyer"), created_at DESC LIMIT 300'
 );
+$stmt->execute($params);
 $rows = $stmt->fetchAll();
 
 ob_start();
@@ -78,6 +88,11 @@ ob_start();
   </div>
 
   <div class="card pad reveal" style="overflow:auto">
+    <form method="get" class="filter-bar" style="margin-bottom:1rem">
+      <input name="q" value="<?= h($q) ?>" placeholder="Search name, phone, email, or NIDA">
+      <select name="role"><option value="">All roles</option><?php foreach (['buyer','seller','agent','expert','admin'] as $opt): ?><option value="<?= $opt ?>" <?= $roleFilter === $opt ? 'selected' : '' ?>><?= $opt === 'buyer' ? 'Property seeker' : ucfirst($opt) ?></option><?php endforeach; ?></select>
+      <button class="btn" type="submit">Search</button>
+    </form>
     <table class="tbl">
       <thead>
         <tr>
@@ -87,6 +102,7 @@ ob_start();
           <th>Phone</th>
           <th>Role</th>
           <th>Status</th>
+          <th>Verification</th>
           <th>Reset password</th>
         </tr>
       </thead>
@@ -109,7 +125,8 @@ ob_start();
                   <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
                   <input type="hidden" name="action" value="set_role">
                   <select name="role">
-                    <?php foreach (['buyer','seller','agent','admin'] as $opt): ?>
+                    <?php $roleOptions = ['buyer','seller','agent','expert']; if ($isSuperAdmin || $r['role'] === 'admin') $roleOptions[] = 'admin'; ?>
+                    <?php foreach ($roleOptions as $opt): ?>
                       <option value="<?= h($opt) ?>" <?= $r['role'] === $opt ? 'selected' : '' ?>><?= h($opt) ?></option>
                     <?php endforeach; ?>
                   </select>
@@ -117,6 +134,7 @@ ob_start();
                 </form>
               <?php endif; ?>
             </td>
+            <td><a class="pill <?= $r['verification_status'] === 'verified' ? 'ok' : ($r['verification_status'] === 'rejected' ? 'bad' : 'warn') ?>" href="<?= APP_BASE_URL ?>/admin/user.php?id=<?= (int)$r['id'] ?>"><?= h((string)$r['verification_status']) ?> · review</a></td>
             <td>
               <?php if ((int)$r['is_active']): ?>
                 <?php if ($isSelf): ?>

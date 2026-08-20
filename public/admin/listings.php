@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     admin_listings_redirect('badge', $id, false, "Listing #$id badge could not be saved.");
   }
 
-  if (in_array($action, ['approve', 'reject', 'review', 'feature_on', 'feature_off'], true)) {
+  if (in_array($action, ['approve', 'reject', 'review', 'feature_on', 'feature_off', 'home_on', 'home_off', 'mark_taken', 'relist'], true)) {
     if ($action === 'approve') {
       if (REQUIRE_PAYMENT_FOR_APPROVAL) {
         $chk = db()->prepare('SELECT payment_status FROM listings WHERE id = ?');
@@ -84,6 +84,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $st->execute([$id]);
       admin_listings_redirect('feature_off', $id, true, "Listing #$id removed from featured.");
     }
+    if ($action === 'home_on') {
+      $st = db()->prepare("UPDATE listings SET show_on_homepage=1 WHERE id=? AND verification_status='approved'");
+      $st->execute([$id]);
+      admin_listings_redirect('home_on', $id, $st->rowCount() > 0, $st->rowCount() > 0 ? "Listing #$id now appears on the homepage." : "Approve listing #$id before adding it to the homepage.");
+    }
+    if ($action === 'home_off') {
+      db()->prepare('UPDATE listings SET show_on_homepage=0 WHERE id=?')->execute([$id]);
+      admin_listings_redirect('home_off', $id, true, "Listing #$id removed from the homepage.");
+    }
+    if ($action === 'mark_taken') {
+      db()->prepare('UPDATE listings SET is_taken=1,taken_at=NOW() WHERE id=?')->execute([$id]);
+      admin_listings_redirect('mark_taken', $id, true, "Listing #$id marked taken.");
+    }
+    if ($action === 'relist') {
+      db()->prepare("UPDATE listings SET is_taken=0,taken_at=NULL,verification_status='submitted',published_at=NULL WHERE id=?")->execute([$id]);
+      admin_listings_redirect('relist', $id, true, "Listing #$id submitted for relisting approval.");
+    }
   }
 
   flash_set('err', 'Unknown action.');
@@ -95,7 +112,7 @@ $highlightAction = (string)($_GET['done'] ?? '');
 $highlightFail = isset($_GET['fail']);
 
 $filter = (string)($_GET['filter'] ?? '');
-$sql = "SELECT l.id,l.title,l.region,l.category,l.verification_status,l.verification_badge,l.is_featured,
+$sql = "SELECT l.id,l.title,l.region,l.listing_type,l.is_taken,l.verification_status,l.verification_badge,l.is_featured,l.show_on_homepage,
                l.listing_package,l.payment_status,l.payment_amount_tzs,l.land_payment_status,l.land_payment_amount_tzs,
                l.video_path,l.created_at,
                u.email AS owner_email,u.phone AS owner_phone,u.full_name AS owner_name
@@ -119,12 +136,8 @@ ob_start();
       </div>
       <div class="col-5" style="display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap">
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/users.php">Users</a>
-        <?php if ($filter === 'land_paid'): ?>
-          <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/listings.php">All listings</a>
-        <?php else: ?>
-          <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/listings.php?filter=land_paid">Paid plots</a>
-        <?php endif; ?>
-        <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/payment-instructions.php">Payment instructions</a>
+        <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/messages.php">Messages</a>
+        <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/expert-requests.php">Expert requests</a>
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/admin/enquiries.php">Enquiries</a>
         <a class="btn secondary" href="<?= APP_BASE_URL ?>/submit-listing.php">Submit listing</a>
         <a class="btn" href="<?= APP_BASE_URL ?>/index.php">Public browse</a>
@@ -142,7 +155,8 @@ ob_start();
           <th>Owner</th>
           <th>Status</th>
           <th>Featured</th>
-          <th>Pay</th>
+          <th>Homepage</th>
+          <th>Availability</th>
           <th>Badge</th>
           <th>Actions</th>
         </tr>
@@ -160,7 +174,7 @@ ob_start();
             <td><?= $rid ?></td>
             <td>
               <div style="font-weight:900"><?= h((string)$r['title']) ?></div>
-              <div class="sub" style="font-size:.9rem"><?= h((string)$r['category']) ?>
+              <div class="sub" style="font-size:.9rem"><?= h(listing_type_label((string)$r['listing_type'])) ?>
                 <?php if ($hasVideo): ?> · <span class="pill ok" style="font-size:.62rem">Video</span><?php endif; ?>
               </div>
             </td>
@@ -183,11 +197,9 @@ ob_start();
               <?php endif; ?>
             </td>
             <td><?= (int)$r['is_featured'] ? 'Yes' : 'No' ?></td>
+            <td><span class="pill <?= (int)$r['show_on_homepage'] ? 'ok' : 'neutral' ?>"><?= (int)$r['show_on_homepage'] ? 'Visible' : 'Hidden' ?></span></td>
             <td>
-              <?php $ps = (string)($r['payment_status'] ?? 'pending'); ?>
-              <?php $ls = (string)($r['land_payment_status'] ?? 'none'); ?>
-              <span class="pill <?= $ps === 'paid' ? 'ok' : ($ps === 'waived' ? 'neutral' : 'warn') ?>" style="font-size:.65rem">fee: <?= h($ps) ?></span>
-              <div class="sub" style="font-size:.8rem;margin-top:.2rem">plot: <span class="pill <?= $ls === 'paid' ? 'ok' : ($ls === 'pending' ? 'warn' : 'neutral') ?>" style="font-size:.65rem"><?= h($ls) ?></span></div>
+              <span class="pill <?= (int)$r['is_taken'] ? 'neutral' : 'ok' ?>"><?= (int)$r['is_taken'] ? 'taken' : 'available' ?></span>
             </td>
             <td>
               <form method="post" class="small-form admin-action-form" data-listing-id="<?= $rid ?>">
@@ -218,10 +230,16 @@ ob_start();
                   <button class="btn btn-action btn-approve<?= $vStatus === 'approved' ? ' is-active-state' : '' ?>" name="action" value="approve" type="submit" data-action="approve">Approve</button>
                   <button class="btn secondary btn-action btn-review<?= $vStatus === 'under_review' ? ' is-active-state' : '' ?>" name="action" value="review" type="submit" data-action="review">Review</button>
                   <button class="btn secondary btn-action btn-reject<?= $vStatus === 'rejected' ? ' is-active-state' : '' ?>" name="action" value="reject" type="submit" data-action="reject">Reject</button>
+                  <?php if ((int)$r['is_taken']): ?><button class="btn secondary btn-action" name="action" value="relist" type="submit">Relist for review</button><?php else: ?><button class="btn secondary btn-action" name="action" value="mark_taken" type="submit">Mark taken</button><?php endif; ?>
                   <?php if ((int)$r['is_featured']): ?>
                     <button class="btn secondary btn-action btn-feature is-active-state" name="action" value="feature_off" type="submit" data-action="feature_off">Unfeature</button>
                   <?php else: ?>
                     <button class="btn secondary btn-action btn-feature" name="action" value="feature_on" type="submit" data-action="feature_on">Feature</button>
+                  <?php endif; ?>
+                  <?php if ((int)$r['show_on_homepage']): ?>
+                    <button class="btn secondary btn-action is-active-state" name="action" value="home_off" type="submit">Remove from home</button>
+                  <?php else: ?>
+                    <button class="btn secondary btn-action" name="action" value="home_on" type="submit">Show on home</button>
                   <?php endif; ?>
                 </form>
                 <form method="post" class="admin-action-form" data-listing-id="<?= $rid ?>" onsubmit="return confirm('Permanently delete listing #<?= $rid ?>? This cannot be undone.');">

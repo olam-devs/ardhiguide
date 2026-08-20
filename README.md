@@ -1,6 +1,6 @@
-## Ardhi Guide MVP (XAMPP / PHP / MySQL)
+## Ardhi Way MVP (XAMPP / PHP / MySQL)
 
-This is a minimal MVP for Ardhi Guide:
+This is a minimal MVP for Ardhi Way:
 - Buyer browsing + enquiry via WhatsApp
 - Seller submits listings
 - Admin reviews/approves listings

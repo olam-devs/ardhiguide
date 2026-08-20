@@ -34,7 +34,7 @@ SET @c2 = LAST_INSERT_ID();
 INSERT INTO payment_steps (category_id, body, sort_order) VALUES
 (@c2, 'From the same pay page, tap Pay with card.', 1),
 (@c2, 'You are redirected to a secure checkout page to enter your card details.', 2),
-(@c2, 'After you finish, you return to Ardhi Guide. Confirmation may take a short moment.', 3),
+(@c2, 'After you finish, you return to Ardhi Way. Confirmation may take a short moment.', 3),
 (@c2, 'Your listing fee is marked paid once verification completes. Track status under My listings.', 4);
 
 INSERT INTO payment_categories (title, subtitle, is_published, sort_order) VALUES

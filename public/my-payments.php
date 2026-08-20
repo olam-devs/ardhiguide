@@ -85,5 +85,5 @@ ob_start();
   </div>
 <?php
 $content = ob_get_clean();
-$title = 'Payments. Ardhi Guide';
+$title = 'Payments. Ardhi Way';
 require __DIR__ . '/_layout.php';

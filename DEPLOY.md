@@ -1,4 +1,4 @@
-# Deploying Ardhi Guide to Evolution
+# Deploying Ardhi Way to Evolution
 
 This project is a PHP 8 + MySQL app. Web root is `public/`. Everything in
 `app/`, `database/`, `scripts/`, and `storage/` lives one level above the

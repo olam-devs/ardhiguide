@@ -39,7 +39,7 @@ function cfg(string $key, ?string $default = null): ?string {
   return ($v === false) ? $default : (string)$v;
 }
 
-define('APP_NAME', cfg('APP_NAME', 'Ardhi Guide'));
+define('APP_NAME', cfg('APP_NAME', 'Ardhi Way'));
 define('APP_BASE_URL', rtrim((string)cfg('APP_BASE_URL', ''), '/'));
 define('SESSION_NAME', (string)cfg('SESSION_NAME', 'ARDHI_GUIDE_SESSION'));
 

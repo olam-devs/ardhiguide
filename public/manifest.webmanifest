@@ -1,0 +1,18 @@
+{
+  "name": "Ardhi Way",
+  "short_name": "Ardhi Way",
+  "description": "Tanzania property marketplace for buying, renting, listings, viewings, guided contact, and verified expert support.",
+  "start_url": "/public/",
+  "scope": "/public/",
+  "display": "standalone",
+  "background_color": "#F7F3EA",
+  "theme_color": "#0E5C4A",
+  "icons": [
+    {
+      "src": "/public/assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

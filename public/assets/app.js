@@ -180,4 +180,111 @@
     btn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
     btn.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
   });
+
+  // ---- Role-aware registration fields ----
+  document.querySelectorAll('[data-role-form]').forEach((form) => {
+    const roleSelect = form.querySelector('[data-role-select]');
+    const accountType = form.querySelector('[data-account-type]');
+    const companyFields = form.querySelector('[data-company-fields]');
+    if (!roleSelect) return;
+
+    const setSection = (section, visible) => {
+      section.hidden = !visible;
+      section.querySelectorAll('input,select,textarea').forEach((field) => {
+        field.disabled = !visible;
+        if (field.name !== 'email') field.required = visible;
+      });
+    };
+    const refresh = () => {
+      const role = roleSelect.value;
+      form.querySelectorAll('[data-role-section]').forEach((section) => {
+        setSection(section, section.dataset.roleSection === role);
+      });
+      if (companyFields) {
+        setSection(companyFields, role === 'agent' && accountType && accountType.value === 'company');
+      }
+    };
+    roleSelect.addEventListener('change', refresh);
+    if (accountType) accountType.addEventListener('change', refresh);
+    refresh();
+  });
+
+  // ---- Tanzania region -> district/council -> ward pickers ----
+  document.querySelectorAll('[data-location-picker]').forEach((picker) => {
+    const region = picker.querySelector('[data-region]');
+    const district = picker.querySelector('[data-district]');
+    const ward = picker.querySelector('[data-ward]');
+    const endpoint = picker.dataset.locationsUrl;
+    if (!region || !district || !ward || !endpoint) return;
+
+    const reset = (select, label) => {
+      select.innerHTML = '';
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = label;
+      select.appendChild(option);
+      select.disabled = true;
+    };
+    const load = async (select, url, label) => {
+      reset(select, 'Loading...');
+      try {
+        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        const payload = await response.json();
+        reset(select, label);
+        (payload.items || []).forEach((item) => {
+          const option = document.createElement('option');
+          option.value = item.code;
+          option.textContent = item.name;
+          select.appendChild(option);
+        });
+        select.disabled = false;
+      } catch (_) {
+        reset(select, 'Could not load locations');
+      }
+    };
+    region.addEventListener('change', () => {
+      reset(district, 'Choose district');
+      reset(ward, 'Choose ward');
+      if (region.value) load(district, endpoint + '?level=districts&region=' + encodeURIComponent(region.value), 'Choose district');
+    });
+    district.addEventListener('change', () => {
+      reset(ward, 'Choose ward');
+      if (region.value && district.value) {
+        load(ward, endpoint + '?level=wards&region=' + encodeURIComponent(region.value) + '&district=' + encodeURIComponent(district.value), 'Choose ward');
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-listing-form]').forEach((form) => {
+    const type = form.querySelector('[data-listing-type]');
+    const furnishing = form.querySelector('[data-furnishing-field]');
+    if (!type || !furnishing) return;
+    const refresh = () => {
+      const visible = type.value === 'house_for_rent' || type.value === 'apartment';
+      furnishing.hidden = !visible;
+      furnishing.querySelectorAll('select').forEach((field) => { field.disabled = !visible; });
+    };
+    type.addEventListener('change', refresh);
+    refresh();
+  });
+
+  // ---- Native/mobile listing sharing ----
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-share-listing]');
+    if (!button) return;
+    const url = button.dataset.shareUrl || window.location.href;
+    const title = button.dataset.shareTitle || document.title;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text: 'View this property on Ardhi Way', url });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        showToast('Property link copied.', 'ok');
+      } else {
+        window.prompt('Copy this property link:', url);
+      }
+    } catch (error) {
+      if (error && error.name !== 'AbortError') showToast('Could not share the link.', 'err');
+    }
+  });
 })();

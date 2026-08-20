@@ -64,6 +64,68 @@ function listing_document_mime_map(): array {
   ];
 }
 
+function listing_type_label(?string $type): string {
+  return [
+    'plot_for_sale' => 'Plot for sale',
+    'house_for_sale' => 'House for sale',
+    'house_for_rent' => 'House for rent',
+    'apartment' => 'Apartment',
+  ][$type ?? ''] ?? 'Property';
+}
+
+function format_tzs_range($minimum, $maximum): string {
+  $min = $minimum === null || $minimum === '' ? null : (int)$minimum;
+  $max = $maximum === null || $maximum === '' ? null : (int)$maximum;
+  if ($min === null && $max === null) return 'Price on request';
+  if ($min !== null && $max !== null && $min !== $max) {
+    return format_tzs((string)$min) . ' – ' . format_tzs((string)$max);
+  }
+  return format_tzs((string)($min ?? $max));
+}
+
+/**
+ * Store a private KYC upload and return metadata for a later database insert.
+ * @param array{name?:string,tmp_name?:string,type?:string,size?:int,error?:int} $file
+ * @return array{ok:bool,err?:string,stored_name?:string,original_name?:string,mime?:string,size_bytes?:int}
+ */
+function store_private_user_upload(array $file, bool $imageOnly = false): array {
+  $err = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+  if ($err === UPLOAD_ERR_NO_FILE) return ['ok' => false, 'err' => 'Choose a file to upload.'];
+  if ($err !== UPLOAD_ERR_OK) return ['ok' => false, 'err' => 'Upload failed.'];
+  $tmp = (string)($file['tmp_name'] ?? '');
+  if ($tmp === '' || !is_uploaded_file($tmp)) return ['ok' => false, 'err' => 'Invalid upload.'];
+  if ((int)($file['size'] ?? 0) > 5 * 1024 * 1024) return ['ok' => false, 'err' => 'File is too large (maximum 5 MB).'];
+
+  $finfo = new finfo(FILEINFO_MIME_TYPE);
+  $mime = (string)($finfo->file($tmp) ?: '');
+  $map = $imageOnly
+    ? ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp']
+    : listing_document_mime_map();
+  if (!isset($map[$mime])) {
+    return ['ok' => false, 'err' => $imageOnly ? 'Use a JPG, PNG, or WebP image.' : 'Use a PDF, JPG, PNG, or WebP file.'];
+  }
+
+  $stored = 'kyc_' . bin2hex(random_bytes(16)) . '.' . $map[$mime];
+  $dest = storage_private_dir() . DIRECTORY_SEPARATOR . $stored;
+  if (!move_uploaded_file($tmp, $dest)) return ['ok' => false, 'err' => 'Could not store the uploaded file.'];
+  $original = basename((string)($file['name'] ?? 'document'));
+  if (strlen($original) > 220) $original = substr($original, 0, 220);
+  return [
+    'ok' => true,
+    'stored_name' => $stored,
+    'original_name' => $original,
+    'mime' => $mime,
+    'size_bytes' => (int)($file['size'] ?? 0),
+  ];
+}
+
+function discard_private_upload(?array $stored): void {
+  $name = (string)($stored['stored_name'] ?? '');
+  if ($name === '' || basename($name) !== $name) return;
+  $path = storage_private_dir() . DIRECTORY_SEPARATOR . $name;
+  if (is_file($path)) @unlink($path);
+}
+
 /**
  * Save one uploaded verification document. Returns null on success, or error message.
  * @param array{name?:string,tmp_name?:string,type?:string,size?:int,error?:int} $file

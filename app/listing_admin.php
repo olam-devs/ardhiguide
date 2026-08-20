@@ -46,45 +46,45 @@ function listing_admin_delete(int $listingId): ?string {
  */
 function listing_admin_update(int $listingId, array $data): ?string {
   $title = trim((string)($data['title'] ?? ''));
-  $region = trim((string)($data['region'] ?? ''));
-  if ($title === '' || $region === '') {
-    return 'Title and region are required.';
-  }
-
-  $category = (string)($data['category'] ?? 'residential');
-  if (!in_array($category, ['residential', 'agricultural', 'commercial', 'industrial', 'other'], true)) {
-    $category = 'other';
-  }
+  $type = (string)($data['listing_type'] ?? 'plot_for_sale');
+  $furnishing = (string)($data['furnishing_status'] ?? 'not_applicable');
+  $regionCode = trim((string)($data['region_code'] ?? ''));
+  $districtCode = trim((string)($data['district_code'] ?? ''));
+  $wardCode = trim((string)($data['ward_code'] ?? ''));
+  $location = location_names($regionCode, $districtCode, $wardCode);
+  if ($title === '' || !$location) return 'Title and a valid location are required.';
+  if (!in_array($type, ['plot_for_sale','house_for_sale','house_for_rent','apartment'], true)) $type = 'plot_for_sale';
+  if (!in_array($type, ['house_for_rent','apartment'], true)) $furnishing = 'not_applicable';
 
   $locationText = trim((string)($data['location_text'] ?? ''));
   $sizeText = trim((string)($data['size_text'] ?? ''));
   $desc = trim((string)($data['description'] ?? ''));
-  $waRaw = trim((string)($data['contact_whatsapp'] ?? ''));
-  $wa = $waRaw === '' ? null : normalize_phone($waRaw);
-  if ($wa === '') {
-    $wa = null;
-  }
-
-  $priceRaw = (string)($data['price_tzs'] ?? '');
-  $priceDigits = preg_replace('/\D+/', '', $priceRaw);
-  $price = $priceDigits !== '' ? (int)$priceDigits : null;
-
-  $package = listing_package_normalize((string)($data['listing_package'] ?? 'basic'));
+  $minDigits = preg_replace('/\D+/', '', (string)($data['price_min_tzs'] ?? ''));
+  $maxDigits = preg_replace('/\D+/', '', (string)($data['price_max_tzs'] ?? ''));
+  $min = $minDigits !== '' ? (int)$minDigits : null;
+  $max = $maxDigits !== '' ? (int)$maxDigits : null;
+  if ($min === null || $max === null || $min > $max) return 'Enter a valid minimum-to-maximum price range.';
 
   $stmt = db()->prepare(
-    'UPDATE listings SET title = ?, category = ?, region = ?, location_text = ?, size_text = ?,
-     price_tzs = ?, description = ?, contact_whatsapp = ?, listing_package = ? WHERE id = ?'
+    'UPDATE listings SET title=?,listing_type=?,furnishing_status=?,region=?,district=?,ward=?,region_code=?,district_code=?,ward_code=?,
+     location_text=?,size_text=?,price_tzs=?,price_min_tzs=?,price_max_tzs=?,description=?,contact_whatsapp=NULL WHERE id=?'
   );
   $stmt->execute([
     $title,
-    $category,
-    $region,
+    $type,
+    $furnishing,
+    $location['region'],
+    $location['district'],
+    $location['ward'],
+    $regionCode,
+    $districtCode,
+    $wardCode,
     $locationText !== '' ? $locationText : null,
     $sizeText !== '' ? $sizeText : null,
-    $price,
+    $min,
+    $min,
+    $max,
     $desc !== '' ? $desc : null,
-    $wa,
-    $package,
     $listingId,
   ]);
   return null;

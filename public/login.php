@@ -79,6 +79,6 @@ ob_start();
   </div>
 <?php
 $content = ob_get_clean();
-$title = 'Login. Ardhi Guide';
+$title = 'Login. Ardhi Way';
 require __DIR__ . '/_layout.php';
 
